@@ -7,10 +7,12 @@ the order given. Put the season you care about most first: the run is long and
 resumable, so an interruption leaves the earlier seasons complete.
 
 Steps are decoupled by design (docs/SCHEMA.md):
-  scrape  — the network job (writes immutable raw/); the slow, overnight part.
-  edge    — an isolated second network job for the Edge season aggregates.
-  build   — offline transform raw/ -> processed/ + audit/; fast, re-runnable.
-  stints  — offline; sweeps the shift tables into stint intervals.
+  scrape       — the network job (writes immutable raw/); the slow, overnight part.
+  shifts-html  — network; fetches HTML TOI reports for the games whose JSON
+                 shift payload came back empty. Not optional — see below.
+  edge         — an isolated second network job for the Edge season aggregates.
+  build        — offline transform raw/ -> processed/ + audit/; re-runnable.
+  stints       — offline; sweeps the shift tables into stint intervals.
 
 Because scrape is idempotent (skips files already on disk), re-running after an
 interruption resumes for free. Because build reads only raw/, you can re-derive
@@ -27,6 +29,11 @@ Typical use:
 
     # Re-build every table from an existing raw archive (no network):
     python src/run_pipeline.py --root . --steps build --seasons 20242025
+
+If you run the steps by hand, do NOT skip shifts-html. The JSON shift feed
+answers HTTP 200 with an empty body for whole blocks of games, so the build
+falls back to HTML reports — which are only on disk if that step ran. Skipping
+it drops those games' on-ice rosters silently, with no error to notice.
 """
 
 from __future__ import annotations
@@ -35,6 +42,7 @@ import argparse
 import time
 
 import pipeline_common as pc
+import shifts_html
 from scrape_raw import scrape_season
 from edge_scrape import scrape_edge_season
 from build_processed import build_players, build_season
@@ -49,7 +57,8 @@ def main():
                          "earlier ones complete. Full archive: "
                          "20242025 20232024 20252026")
     ap.add_argument("--steps",
-                    choices=["all", "scrape", "edge", "build", "stints"],
+                    choices=["all", "scrape", "shifts-html", "edge", "build",
+                             "stints"],
                     default="all")
     ap.add_argument("--no-edge", action="store_true",
                     help="skip the NHL Edge season-level pull in --steps all")
@@ -70,6 +79,16 @@ def main():
         for season in args.seasons:
             scrape_season(lay, season, args.game_type, args.delay, args.force,
                           args.stop_after_404, args.max_games)
+
+    # THIS STEP IS NOT OPTIONAL IN PRACTICE. The JSON shiftcharts feed returns
+    # HTTP 200 with an empty body for whole blocks of games (505 of them in
+    # 2025-26), and the build silently falls back to HTML reports that are only
+    # on disk if this ran. Skipping it costs those games their on-ice rosters
+    # with no error anywhere. It must follow the scrape, since it reads each
+    # game's PBP to resolve sweater numbers to player ids.
+    if args.steps in ("all", "shifts-html"):
+        for season in args.seasons:
+            shifts_html.fetch_missing(lay, season, args.delay, args.force)
 
     # Edge runs after the core scrape (it reads each season's PBP rosterSpots)
     # and is isolated: a failure here never touches the core raw archive.

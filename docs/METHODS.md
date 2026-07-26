@@ -96,16 +96,33 @@ through silently. Maximum observed player-to-puck distance is 187.5 ft against a
 
 ## 4. Frame rate
 
-The per-frame `timeStamp` field is a **tick counter, not a clock.** It gives
-frame order, not elapsed time, and deriving `dt` from it is wrong.
+**The rate is 10 fps — `dt` = 0.1 s.** Two independent lines of evidence agree.
 
-The true rate is **10 fps (`dt` = 0.1 s)**, established by checking that implied
-puck speeds are physically sane at 0.1 s and impossible — 200+ mph — at 0.033 s.
+**Physical plausibility.** Implied puck speeds are sane at `dt` = 0.1 s and
+impossible — 200+ mph — at 0.033 s. This was the original derivation, and it
+does not depend on interpreting any field.
+
+**The `timeStamp` field itself.** This is commonly described (including in
+earlier versions of this document) as an opaque tick counter that gives order
+but not time. That turns out to be wrong: **it is deciseconds since the Unix
+epoch.** `17280637538 / 10` resolves to 2024-10-04 17:42:33.8 UTC, and that
+game's play-by-play records `gameDate: 2024-10-04` with `startTimeUTC 17:00:00Z`
+— a first goal 42 minutes of real time into the broadcast. Timestamp gaps
+between consecutive goals run 2.0–3.9× the game-clock gap, exactly as elapsed
+real time should once stoppages and intermissions are counted.
+
+The step between consecutive frames is **exactly +1, with no exceptions in any
+file checked**, so one frame is 0.1 s directly from the field.
+
+Practically nothing changes: `SECONDS_PER_FRAME` stays hardcoded at 0.1 and the
+pipeline still treats the field as ordering only, which is correct under either
+reading. What changes is that the frame rate now rests on two independent
+confirmations rather than one inference. See
+[FIELD_REFERENCE §1](FIELD_REFERENCE.md) for the full working.
 
 Window length varies by season and situation (120 frames in 2023-24, 140 in
-later seasons, 210 in overtime) but the rate does not. `SECONDS_PER_FRAME` is
-fixed at 0.1 in `pipeline_common.py`; if you extend this pipeline to a new
-season, re-run the speed check rather than assuming it holds.
+later seasons, 210 in overtime) but the rate does not. If you extend this
+pipeline to a new season, re-check rather than assuming.
 
 ---
 

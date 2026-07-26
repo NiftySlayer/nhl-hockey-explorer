@@ -64,8 +64,33 @@ distance reduces to a `hypot` around a net at `y = 0`, getting it backwards is
 invisible in every distance the pipeline emits. See
 [docs/METHODS.md §3](docs/METHODS.md).
 
-Full write-up of all of it, with the numbers behind each claim, in
-[docs/METHODS.md](docs/METHODS.md).
+---
+
+## Documentation
+
+| Doc | What's in it |
+|---|---|
+| [docs/METHODS.md](docs/METHODS.md) | Every processing decision and the measurement behind it. The main document |
+| [docs/FIELD_REFERENCE.md](docs/FIELD_REFERENCE.md) | **Field-level documentation for all four endpoints**, derived by profiling the raw archive, with confidence markers and open questions |
+| [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) | The endpoints, what each returns, and their quirks |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | On-disk layout and output table columns |
+
+The field reference exists because none of these payloads are documented
+anywhere. The best community reference,
+[Zmalski/NHL-API-Reference](https://github.com/Zmalski/NHL-API-Reference),
+covers endpoint paths and parameters but not response fields for any of them.
+Everything in it was derived empirically and is marked ✅ verified,
+⚠️ inferred, or ❓ unknown — including a list of what remains unresolved.
+
+Two findings from that work worth surfacing here:
+
+- **The play-by-play tells you the sprite URL.** Goal plays carry a
+  `pptReplayUrl` field whose value is exactly the sprite endpoint, so the URL
+  need not be constructed at all.
+- **The sprite `timeStamp` is a wall clock**, not the opaque tick counter it is
+  usually described as: deciseconds since the Unix epoch, stepping exactly +1
+  per frame. That independently confirms the 10 fps rate from a second
+  direction.
 
 ---
 
@@ -124,8 +149,14 @@ To check the shot detection against the play-by-play's own coordinates:
 python src/shotframe_validation.py --root . --seasons 20242025 --sample 3000
 ```
 
-Individual steps (`scrape`, `edge`, `build`, `stints`) can be run alone with
-`--steps`, and each module also has its own CLI.
+Individual steps (`scrape`, `shifts-html`, `edge`, `build`, `stints`) can be run
+alone with `--steps`, and each module also has its own CLI.
+
+⚠️ **If you run steps by hand, do not skip `shifts-html`.** The JSON shift feed
+answers HTTP 200 with an empty body for whole blocks of games, so the build
+falls back to HTML reports that are only on disk if that step ran. Skipping it
+drops those games' on-ice rosters silently — no error, no warning, just missing
+games. `--steps all` includes it.
 
 ---
 

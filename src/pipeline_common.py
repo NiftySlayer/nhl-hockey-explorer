@@ -64,8 +64,10 @@ DEFAULT_DELAY = 0.7  # seconds between requests (docs/METHODS.md §1: 0.5-1 s)
 # also a shot attempt.
 SHOT_EVENT_TYPES = ("goal", "shot-on-goal", "missed-shot", "blocked-shot")
 
-# Frame rate is fixed at 10 fps; do NOT read dt from the tick-counter
-# timeStamp (docs/METHODS.md §4).
+# Frame rate is fixed at 10 fps (docs/METHODS.md §4). The per-frame timeStamp
+# is deciseconds since the Unix epoch and steps exactly +1 per frame, so it
+# agrees -- but it is used for ordering only and dt is hardcoded, so a feed that
+# ever changed units could not silently rescale every distance in the archive.
 SECONDS_PER_FRAME = 0.1
 
 # THE MEASUREMENT POINT FOR PLAYER-TO-PUCK DISTANCE.

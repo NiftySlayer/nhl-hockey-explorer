@@ -38,7 +38,7 @@ seasons.**
 
 | | |
 |---|---|
-| `timeStamp` is a **tick counter, not a clock** | ~1 per frame. It gives order, not elapsed time. True rate is 10 fps ([METHODS §4](METHODS.md)) |
+| `timeStamp` is **deciseconds since the Unix epoch** | Steps exactly +1 per frame, so one frame = 0.1 s = 10 fps. Often mis-described as an opaque tick counter ([METHODS §4](METHODS.md), [FIELD_REFERENCE §1](FIELD_REFERENCE.md)) |
 | Window length varies | 120 frames in 2023-24 (~12 s), 140 in later seasons (~14 s), 210 in overtime. Same fps, longer pre-goal window |
 | Recording continues past the goal | Median 3.5 s of dead time with the puck in the net ([METHODS §5](METHODS.md)) |
 | Bench emptying | Up to 35 entities per frame on overtime and game-winning goals ([METHODS §6](METHODS.md)) |
