@@ -74,6 +74,7 @@ invisible in every distance the pipeline emits. See
 | [docs/FIELD_REFERENCE.md](docs/FIELD_REFERENCE.md) | **Field-level documentation for all four endpoints**, derived by profiling the raw archive, with confidence markers and open questions |
 | [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) | The endpoints, what each returns, and their quirks |
 | [docs/SCHEMA.md](docs/SCHEMA.md) | On-disk layout and output table columns |
+| [docs/RAW_ARCHIVE.md](docs/RAW_ARCHIVE.md) | **The full 6.8 GB raw archive**, published separately — what's in it, per-file checksums, and coverage verified before publishing |
 
 The field reference exists because none of these payloads are documented
 anywhere. The best community reference,
@@ -178,15 +179,26 @@ works because Python puts the running script's directory on `sys.path`.
 
 ---
 
-## Data is not included
+## The raw archive is published separately
 
-The repository carries code and documentation. The raw archive is 6.8 GB and
-the processed tables are derived from it; both are excluded. Everything is
-reproducible from the endpoints with `run_pipeline.py`.
+The repository itself carries code and documentation. The raw archive — 6.8 GB
+of verbatim sprite, play-by-play, and shift JSON across three seasons — is
+published on Zenodo rather than committed to git:
+**[10.5281/zenodo.21608977](https://doi.org/10.5281/zenodo.21608977)**. It's a
+permanent, checksummed, versioned mirror of a scrape against an undocumented
+endpoint that could change or disappear without notice, which is the whole
+reason to archive it rather than only document how to reproduce it.
 
-The `audit/` completeness tables are the exception. All three seasons ship
-(836 KB), one row per goal, so every coverage and accuracy claim above can be
-checked without running a multi-hour scrape:
+Full contents, per-file sha256 manifests, and the coverage checks run before
+publishing are in [docs/RAW_ARCHIVE.md](docs/RAW_ARCHIVE.md). The processed
+tables are excluded the same way — they're mechanically re-derivable from raw/
+with `run_pipeline.py --steps build`, so shipping them separately would just be
+redundant with what the code already produces.
+
+The `audit/` completeness tables are the exception to both. All three seasons
+ship in this repo (836 KB), one row per goal, so every coverage and accuracy
+claim above can be checked without downloading the raw archive or running a
+multi-hour scrape:
 
 ```python
 import pandas as pd
