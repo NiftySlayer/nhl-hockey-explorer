@@ -13,7 +13,8 @@ BOUNDARY RULE (validated against the data, not assumed)
 A player is on ice at instant t iff `shift.start < t <= shift.end`. At a goal
 the whistle blows: the outgoing line's shifts END at t while the incoming
 line's shifts START at t. An inclusive-both-ends rule counts BOTH lines and
-yields 14-18 players on ice; this rule yields 8-13 for 97.6% of goals (mode 12).
+gives a median of 20 players on ice over 24,688 goals (mode 22); this rule gives
+a median of 12 (mode 12), within 8-13 for 97.1% of goals.
 
 Equivalently, for a stint spanning (a, b] a player is on ice iff
 `shift.start <= a and shift.end >= b`, which the sweep below maintains.

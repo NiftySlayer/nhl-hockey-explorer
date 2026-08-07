@@ -12,11 +12,8 @@ ANCHORED on. At best that number confirms we found a frame where the scorer had
 the puck; it says nothing about whether we found the frame where the shot left
 his stick, or whether we placed it on the right part of the ice.
 
-A validation statistic that cannot fail is not a validation statistic. This
-module supplies one that can.
-
-The PBP records its own (x, y) for every goal, assigned by an NHL scorer who
-watched it. That is an INDEPENDENT observation of the same event, and it can
+The PBP records its own (x, y) for every goal, placed by an NHL scorer watching
+the game. That is an INDEPENDENT observation of the same event, and it can
 falsify three things the tracking pipeline assumes:
 
   1. COORDINATE FRAME. The sprite feed gives inches-from-corner, converted by

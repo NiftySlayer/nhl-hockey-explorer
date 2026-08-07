@@ -1,13 +1,13 @@
 # Field reference
 
-Field-level documentation for the four NHL endpoints this pipeline reads.
+Field-level documentation for the NHL endpoints this pipeline reads.
 
 **None of this is officially documented.** The community reference at
 [Zmalski/NHL-API-Reference](https://github.com/Zmalski/NHL-API-Reference) covers
-endpoint paths and parameters but does not document response fields for any of
-these payloads. Everything below was derived by profiling the raw archive
-(three seasons, ~24,000 goal sprites and 3,936 games), and every semantic claim
-that could be tested against another field was tested.
+endpoint paths and parameters but not response fields for any of these payloads.
+Everything below was derived by profiling the raw archive (three seasons,
+~24,000 goal sprites and 3,936 games), and every semantic claim that could be
+tested against another field was tested.
 
 **Confidence is marked throughout:**
 
@@ -23,7 +23,7 @@ Counts and percentages come from a 40–200 game sample of 2024-25 unless stated
 
 ## 1. Sprites — `wsr.nhle.com/sprites/{season}/{game}/ev{event}.json`
 
-### You do not have to construct this URL
+### The URL does not have to be constructed
 
 ✅ The play-by-play carries it directly. Goal plays include a `pptReplayUrl`
 field whose value is exactly the sprite URL:
@@ -45,7 +45,7 @@ host, or a different structure entirely.
 ### Structure
 
 ✅ **The file is a bare JSON array of frames.** There is no wrapper object — the
-top level is a list. This trips people up.
+top level is a list.
 
 ```json
 [
@@ -64,7 +64,7 @@ top level is a list. This trips people up.
 | `onIce` | dict | Keyed by entity id (string). **Key `"1"` is the puck** | ✅ |
 | `onIce[k].id` | int | Entity id. Always equals `int(k)` — the dict key duplicated | ✅ |
 | `onIce[k].playerId` | int | Universal NHL player id. **Empty string `""` for the puck** | ✅ |
-| `onIce[k].x`, `.y` | float | Position in **inches from the corner**. See [METHODS §3](METHODS.md) for the transform and the y-axis inversion | ✅ |
+| `onIce[k].x`, `.y` | float | Position in **inches from the rink corner at standard (−100, +42.5)**. Ranges 0–2400 and 0–1020 in. See [METHODS §3](METHODS.md) for the transform and the y-axis inversion | ✅ |
 | `onIce[k].sweaterNumber` | int | Jersey number; `""` for the puck | ✅ |
 | `onIce[k].teamId`, `.teamAbbrev` | int, str | Team; `""` for the puck | ✅ |
 
@@ -74,10 +74,10 @@ and map one-to-one to a `playerId`, so they behave like a per-game tracking-tag
 or chip id. Whether they persist across games is untested. **Do not join on
 them** — join on `playerId`.
 
-### `timeStamp` is a wall clock, and this is worth knowing
+### `timeStamp` is a wall clock
 
-⚠️ **Widely described as an opaque tick counter. It is not — it is tenths of a
-second since the Unix epoch.**
+⚠️ **Widely described as an opaque tick counter. It is tenths of a second since
+the Unix epoch.**
 
 ```
 17280637538 / 10 = 1728063753.8  →  2024-10-04 17:42:33.8 UTC
@@ -94,15 +94,14 @@ Two consequences:
 1. ✅ **The frame rate is confirmed directly.** The step between consecutive
    frames is exactly `+1`, with no exceptions in any file checked, so one frame
    = 0.1 s = **10 fps**. This corroborates the speed-test derivation in
-   [METHODS §4](METHODS.md) from an independent direction.
-2. It gives an absolute wall-clock anchor for each clip, which could be used to
-   align sprites against other time-stamped feeds.
+   [METHODS §4](METHODS.md) independently.
+2. It gives an absolute wall-clock anchor for each clip, usable to align sprites
+   against other time-stamped feeds.
 
 Marked ⚠️ rather than ✅ because the epoch interpretation is an inference from a
-strikingly good fit, not from documentation. The operational guidance is
-unaffected either way: **`dt` = 0.1 s.** This pipeline treats the field as
-ordering only and hardcodes `SECONDS_PER_FRAME = 0.1`, which is correct under
-both readings.
+good fit, not from documentation. The operational guidance is the same either
+way: **`dt` = 0.1 s.** This pipeline treats the field as ordering only and
+hardcodes `SECONDS_PER_FRAME = 0.1`.
 
 ### Frame counts
 
@@ -271,9 +270,10 @@ behind the centre line.
 ✅ Observed values, by frequency: `wrist`, `snap`, `slap`, `tip-in`, `backhand`,
 `deflected`, `wrap-around`, `poke`, `bat`, `between-legs`, `cradle`.
 
-Relevant to [METHODS §7.4](METHODS.md): `tip-in` and `deflected` are exactly the
-shot types where scorer-anchored detection is weakest, since the credited player
-touches a puck already in flight. Together they are ~9% of shot events.
+Shot-frame accuracy varies by type — see the table in
+[METHODS §7.4](METHODS.md). Tips and deflections locate well but have low
+scorer-match rates, because of the net-front traffic they occur in;
+wrap-arounds and backhands are the weaker cases for locating the release.
 
 ---
 
@@ -390,6 +390,4 @@ Everything marked ❓ above, collected:
 | Shift `detailCode` 801–807 | §3 |
 | Edge `locationCode` values beyond `"all"`, and the full metric set | §5 |
 
-Corrections and additions are welcome — open an issue. The profiling scripts
-behind this document are straightforward to reproduce against any archive built
-by this pipeline.
+Corrections and additions are welcome — open an issue.

@@ -13,8 +13,12 @@ separate blocks. The classic HTML TOI reports DO carry the data for them:
     https://www.nhl.com/scores/htmlreports/{season}/TH{gamenum}.HTM   (home)
 
 Without this fallback those games have no on-ice rosters and drop out of any
-analysis built on shifts. Recovered TOI correlates 0.99996 with the JSON feed's
-on the games where both exist.
+analysis built on shifts.
+
+The pipeline only fetches these reports where the JSON feed is empty, so the two
+sources never overlap in the archive. Checked separately on 12 games that have
+both: per-player TOI correlates 0.99998 (456 player-games, median difference
+0 s), and shift counts match exactly for 99.3% of players.
 
 REPORT STRUCTURE
 ----------------

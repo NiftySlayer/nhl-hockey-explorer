@@ -31,13 +31,12 @@ audit/
   edge_log_{season}.jsonl
 ```
 
-**`raw/` is immutable.** Bytes are written verbatim, only on HTTP 200, via a
+`raw/` is immutable. Bytes are written verbatim, only on HTTP 200, via a
 temp-file-then-rename so an interrupted write never leaves a truncated file. The
 scraper checks for an existing file before fetching, so re-running is free.
 
-**Everything in `processed/` and `audit/` is derived.** If a parse rule changes,
-re-run the build against `raw/` — never re-fetch. That separation is the whole
-reason raw bytes are stored unparsed.
+Everything in `processed/` and `audit/` is derived. If a parse rule changes,
+re-run the build against `raw/` rather than re-fetching.
 
 Seasons are the 8-digit NHL form: `20242025`.
 
@@ -45,22 +44,21 @@ Seasons are the 8-digit NHL form: `20242025`.
 
 ## `processed/events/{season}.parquet`
 
-**One row per (goal × on-ice player).** The tracking output — this is the table
-most consumers want.
+One row per (goal × on-ice player). The tracking output.
 
 | Column | Type | Notes |
 |---|---|---|
 | `season`, `game_id`, `event_id` | str, int, int | `event_id` joins to the sprite filename and the play-by-play `eventId` |
-| `player_id` | int | **The join key.** Universal NHL player id |
+| `player_id` | int | The join key. Universal NHL player id |
 | `team_id`, `team_abbrev`, `sweater_number` | int, str, int | Display fields — never join on these |
 | `position_code` | str | From the play-by-play roster; `"G"` for goalies |
 | `is_goalie`, `is_scorer` | bool | |
 | `is_scoring_team` | bool | Whether this player's team scored |
 | `scoring_team_id`, `home_team_id` | int | |
 | `situation_code` | str | 4 digits, e.g. `"1551"` = 5v5 |
-| **`d_shotframe`** | float | **Distance in feet to the puck at the inferred shot release**, averaged over ±2 frames. The primary measurement |
-| `d_goalframe` | float | Same, at the goal instant. Outcome-conditioned — see [METHODS §7.1](METHODS.md). Provided for comparison, not for use |
-| `shot_lead_seconds` | float | Seconds between the detected release and the goal. Median 0.9 s. Use this to resolve roster/strength/score state at the shot rather than the goal |
+| **`d_shotframe`** | float | Distance in feet to the puck at the inferred shot release, averaged over ±2 frames. The primary measurement |
+| `d_goalframe` | float | Same, at the goal instant. Outcome-conditioned — see [METHODS §7.1](METHODS.md). For comparison, not for use |
+| `shot_lead_seconds` | float | Seconds between the detected release and the goal. Median 0.9 s. Use it to resolve roster/strength/score state at the shot rather than the goal |
 
 Either distance may be null when that player had no valid coordinates in the
 relevant frame window. Rows are the union of players seen at either frame.
@@ -69,8 +67,8 @@ relevant frame window. Rows are the union of players seen at either frame.
 
 ## `audit/completeness_{season}.parquet`
 
-**One row per goal in the play-by-play**, whether or not tracking resolved. This
-is a deliverable, not a log — filter your analysis on it.
+One row per goal in the play-by-play, whether or not tracking resolved. Filter
+your analysis on it.
 
 **Identity**
 
@@ -86,18 +84,18 @@ is a deliverable, not a log — filter your analysis on it.
 |---|---|
 | `sprite_exists`, `parsed` | bool |
 | `frame_count` | Frames in the sprite |
-| `onice_entities_goalframe`, `n_onice_goalframe` | Sane values are 11–13. Large numbers mean a bench emptied |
+| `onice_entities_goalframe`, `n_onice_goalframe` | Anchor frames are capped at 14 entities and 7 per team ([METHODS §6](METHODS.md)); 97% fall in 8–13 |
 | `puck_has_coords_goalframe` | bool |
 | `frames_back_to_valid_puck` | How far the walk-back went to find a valid puck |
 | `frames_trimmed_dead` | Frames of post-goal dead time removed ([METHODS §5](METHODS.md)) |
 | `goalframe_index`, `shotframe_index` | Chosen frame indices |
-| `note` | Free text: `sprite-missing-or-403`, `no-valid-puck-in-any-frame`, `scorer-not-tracked`, etc. |
+| `note` | `sprite-missing-or-403`, `sprite-unparseable-or-empty`, `no-valid-puck-in-any-frame`, `scorer-not-tracked`, or empty |
 
 **Shot detection**
 
 | Column | Notes |
 |---|---|
-| `shot_method` | `local-min` (a real puck contact) or `global-min` (fallback — **56.7% of these are more than 20 ft off**) |
+| `shot_method` | `local-min` (a real puck contact) or `global-min` (fallback — 56.7% of these are more than 20 ft off) |
 | `scorer_dist_shotframe` | Puck-to-scorer at the chosen frame. Median 2.73 ft |
 | `frames_before_goal` | Detection lead. A long lead is the signature of a wrong frame |
 | `shot_net_dist_ft` | Implied shot distance to the target net. Median 19.7 ft |
@@ -105,22 +103,22 @@ is a deliverable, not a log — filter your analysis on it.
 | `shot_n_contacts` | Separate local minima found. >1 means a rebound or multiple touches |
 | `net_source` | `pbp` (from `homeTeamDefendingSide`) or `puck-sign` (fallback) |
 | `nearest_ft_goalframe`, `nearest_ft_shotframe` | Nearest-player distance at each frame |
-| `tracking_shooter_goalframe`, `tracking_shooter_shotframe` | Nearest player's id at each frame. **Not a shooter identification** — see the two rows below |
-| `scorer_match_goalframe` | Is the nearest player at the goal frame the recorded scorer? **4.6%.** Expected, and the reason the goal frame is not the measurement point ([METHODS §7.1](METHODS.md)) |
-| `scorer_match_shotframe` | Same at the shot frame. **74.2%** — and a consistency check only, since the frame is anchored on the scorer. Use `shot_pbp_err_ft` below for actual accuracy |
+| `tracking_shooter_goalframe`, `tracking_shooter_shotframe` | Nearest player's id at each frame. Not a shooter identification — see the two rows below |
+| `scorer_match_goalframe` | Is the nearest player at the goal frame the recorded scorer? 4.6%. The goalie is nearest 66% of the time, which is why the goal frame is not the measurement point ([METHODS §7.1](METHODS.md)) |
+| `scorer_match_shotframe` | Same at the shot frame. 74.2%, and a consistency check only, since the frame is anchored on the scorer. Use `shot_pbp_err_ft` for accuracy |
 
 **Confidence**
 
 | Column | Notes |
 |---|---|
-| `shot_pbp_err_ft` | **The independent accuracy measure.** Feet between the tracked puck at the chosen frame and the play-by-play's own recorded shot location. Median 2.04 ft, 90.1% within 10 ft; nothing in the detection uses it, so it can genuinely fail |
-| `shot_confidence` | `high` — real contact *and* within 20 ft of the PBP location. `low` — no genuine contact, or more than 20 ft off. `unverified` — real contact but no PBP coordinates to check against. `none` — no shot frame found |
+| `shot_pbp_err_ft` | The independent accuracy measure: feet between the tracked puck at the chosen frame and the play-by-play's own recorded shot location. Median 2.04 ft, 90.1% within 10 ft. Nothing in the detection uses it |
+| `shot_confidence` | `high` — real contact and within 20 ft of the PBP location (22,980 goals). `low` — no genuine contact, or more than 20 ft off (908). `unverified` — real contact but no PBP coordinates to check against (0 in this archive; every goal has them). `none` — the scorer is not trackable in the sprite (50). Null — no sprite, unparseable, or no valid puck in any frame (135) |
 
 ---
 
 ## `processed/stints/{season}.parquet`
 
-**One row per stint** — a maximal interval with no substitution.
+One row per stint — a maximal interval with no substitution.
 
 | Column | Notes |
 |---|---|
@@ -128,7 +126,7 @@ is a deliverable, not a log — filter your analysis on it.
 | `start_abs_seconds`, `end_abs_seconds`, `duration_seconds` | Absolute seconds from puck drop |
 | `home_team_id`, `away_team_id` | |
 | `n_home_skaters`, `n_away_skaters` | Skaters only, goalies excluded |
-| `home_goalie_on`, `away_goalie_on` | **Check these before calling a stint even strength** ([METHODS §8](METHODS.md)) |
+| `home_goalie_on`, `away_goalie_on` | Check these before calling a stint even strength ([METHODS §8](METHODS.md)) |
 | `strength_home` | Convenience label from the home perspective, e.g. `"5v5"`, `"5v4"` |
 | `goals_home`, `goals_away` | Goals in `(start, end]` |
 | `score_diff_home` | Score differential **before** this stint |
@@ -137,8 +135,8 @@ is a deliverable, not a log — filter your analysis on it.
 | `b2b_home`, `b2b_away` | Did that team play the previous calendar day? |
 
 `processed/stint_players/{season}.parquet` is the companion: `game_id`,
-`stint_idx`, `player_id`, `team_id`, `is_home`, `is_goalie` — one row per
-player on the ice for that stint.
+`stint_idx`, `player_id`, `team_id`, `is_home`, `is_goalie` — one row per player
+on the ice for that stint.
 
 ---
 
@@ -151,22 +149,22 @@ goal, missed shot, blocked shot): `season`, `game_id`, `event_id`, `event_type`,
 `scoring_player_id`, `blocking_player_id`, `event_owner_team_id`,
 `goalie_in_net_id`, `shot_type`, `zone_code`, `x_coord`, `y_coord`.
 
-*For blocked shots, `event_owner_team_id` is the **blocking** team.*
+For blocked shots, `event_owner_team_id` is the **blocking** team.
 
 **`processed/shifts/{season}.parquet`** — one row per player shift: `season`,
 `game_id`, `player_id`, `team_id`, `period`, `start_time`, `end_time`,
 `start_abs_seconds`, `end_abs_seconds`, `duration_seconds`, `shift_number`,
-`source` (`json` or `html` — which feed it came from).
+`source` (`json` or `html`).
 
 **`processed/players.parquet`** — `playerId`, `firstName`, `lastName`,
 `positionCode`. Built from every raw play-by-play `rosterSpots` on disk, so it
 spans all seasons present.
 
-*Caveat: `positionCode` is last-write-wins across the archive. A forward listed
-as C in one game and L in another resolves to whichever game was read last, so
-the value can shift depending on how much of the archive is on disk. It is
-reliable for the distinction the pipeline actually uses it for — goalie versus
-skater — and should be treated as approximate for anything finer.*
+`positionCode` is last-write-wins across the archive: a forward listed as C in
+one game and L in another resolves to whichever game was read last, so the value
+depends on how much of the archive is on disk. It is reliable for the
+distinction the pipeline uses it for — goalie versus skater — and approximate
+for anything finer.
 
 **`processed/games/{season}.parquet`** — `season`, `game_id`, `game_date`,
 `game_type`, `home_team_id`, `home_team_abbrev`, `away_team_id`,
@@ -176,12 +174,12 @@ skater — and should be treated as approximate for anything finer.*
 `y_coord`, `zone_code`, `event_owner_team_id`, `winning_player_id`,
 `losing_player_id`, `home_team_defending_side`. Raw geometry only; resolving a
 faceoff to an offensive or defensive zone start *per team* is left to the
-consumer, who knows which perspective they want.
+consumer.
 
 **`processed/edge_skaters` / `edge_goalies`** — flattened season aggregates.
-Skaters: top shot speed, max skating speed, bursts over 20 mph, distance
-skated, shots/goals/shooting %, zone-time shares. Goalies: GAA, goal
-differential per 60, saves, goals against, save %.
+Skaters: top shot speed, max skating speed, bursts over 20 mph, distance skated,
+shots/goals/shooting %, zone-time shares. Goalies: GAA, goal differential per
+60, saves, goals against, save %.
 
 ---
 

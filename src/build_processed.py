@@ -20,14 +20,11 @@ Produces:
   audit/completeness_{season}.parquet  the reconciliation table (METHODS.md §9)
                                         plus per-goal shot-detection confidence
 
-Shot-frame distances are SCORER-ANCHORED: the play-by-play already names the
-scorer, so we search for the frame where the puck was last at that player
-rather than trying to infer a shooter from puck kinematics. That inversion is
-the single most consequential decision in this pipeline. Kinematic inference
-identified the right shooter 47% of the time; anchoring removes shooter
-identification as a failure mode entirely, and the frames it picks put the puck
-a median 2.04 ft from where the NHL scorer recorded the shot. See
-docs/METHODS.md §7.
+Shot-frame distances are SCORER-ANCHORED: the play-by-play names the scorer, so
+we search for the frame where the puck was last at that player rather than
+inferring a shooter from puck kinematics. The frames it picks put the puck a
+median 2.04 ft from where the NHL scorer recorded the shot, 90% within 10 ft.
+See docs/METHODS.md §7.
 
 Usage (normally via run_pipeline.py, and from the repo root):
     python src/build_processed.py --root . --seasons 20242025
@@ -192,20 +189,16 @@ def nearest_player(dist_map):
 # WHY THE MEASUREMENT POINT IS NOT THE GOAL FRAME
 # -----------------------------------------------
 # Measuring player-to-puck distance at the GOAL frame is outcome-conditioned by
-# construction: the puck is in the net, so the conceding side's defencemen are
-# mechanically the closest players on the ice. The resulting "defencemen are
-# 26 ft away when conceding and 47 ft when scoring" asymmetry is then largely a
-# statement about where the net is, not about who was involved in the play. Any
-# statistic built on it inherits a systematic asymmetry that simply encodes
-# which team scored.
+# construction: the puck is in the net, so the nearest player is the conceding
+# goalie 66% of the time and one of his defencemen another 14%. It is the
+# recorded scorer only 4.6% of the time. Any statistic built on it inherits an
+# asymmetry that mostly encodes which team scored.
 #
-# The obvious alternative -- INFER the shooter from puck kinematics (near-stick
-# frames scored on net-ward travel, acceleration and recency) -- was tried and
-# abandoned: it identified the right shooter 47% of the time. Anchoring inverts
-# the problem. The play-by-play already tells us WHO scored, so we only need to
-# find WHEN the puck was last at that player. That is a one-dimensional search
-# with a known target instead of an inference, and it leaves only the timing to
-# validate -- which shotframe_validation.py does against an outside source.
+# Anchoring inverts the problem. The play-by-play already tells us WHO scored,
+# so we only need to find WHEN the puck was last at that player: a
+# one-dimensional search with a known target rather than an inference. That
+# leaves only the timing to validate, which shotframe_validation.py does against
+# an outside source.
 #
 # METHOD: walk backwards from the goal frame over the scorer-puck distance and
 # take the most recent LOCAL MINIMUM that is close enough to be a puck contact.
@@ -241,8 +234,8 @@ NET_ARRIVAL_RUN = 4            # frames it must stay there to count as arrival
 # PRIMARY RULE: find where the puck DIES.
 # Motion is a better signal than net proximity because it needs no estimate of
 # which net or where it is -- the coordinates are absolute and a play can run
-# toward either end. Measured on 2024-25: the puck moves a median 1.99 ft/frame
-# during live play and 0.15 ft/frame once it is dead in the net, a 13x gap.
+# toward either end. Measured: the puck moves a median 2.0 ft/frame during live
+# play and 0.07 ft/frame once it is dead in the net.
 # So: walk back over the terminal run of frames where the puck is not moving;
 # the goal instant is where that run starts. Net proximity stays as a fallback
 # for goals where the puck is retrieved immediately and never rests.
@@ -383,20 +376,18 @@ def scorer_anchored_shot_frame(frames, scorer_id, gf_idx,
 
     # TARGET NET — PBP FIRST, PUCK SIGN ONLY AS FALLBACK.
     #
-    # The original rule was "the puck ends up in the net, so its side is the
-    # sign of puck-x at the goal frame". That is true only when the goal frame
-    # is right. On 251 of 23,888 goals (1.05%) it is not — the puck has been
-    # retrieved and carried back up ice by the frame we land on, its x flips
-    # sign, and the shot gets measured to the far end. Those goals came out at
-    # a median 166 ft when the PBP put them at 16 ft, and they contaminated the
-    # top of every shot-distance stratification while looking like real long
-    # shots. Their tell is a 4.2 s detection lead against 0.9 s typical.
+    # Reading the net off the sign of puck-x at the goal frame assumes the puck
+    # is still in the net there. On 251 of 23,888 goals (1.05%) it is not: the
+    # puck is fished out and sent back up ice before the clip ends, so it never
+    # comes to rest, the dead-run trim in goal_instant() finds nothing, the goal
+    # frame stays at the last frame, and by then puck-x has crossed centre ice.
+    # Those goals came out at a median 166 ft when the PBP put them at 16 ft.
     #
     # `homeTeamDefendingSide` fixes the attacking direction from the PBP with no
-    # dependence on any tracking frame, so it cannot fail this way. Using it
-    # lifts the correlation between our implied shot distance and the PBP's own
-    # to 0.896 from 0.780. The puck-sign rule stays as a fallback for goals
-    # where the PBP omits the field.
+    # dependence on any tracking frame. Using it lifts the correlation between
+    # our implied shot distance and the PBP's own from 0.78 to 0.90. The
+    # puck-sign rule stays as a fallback for goals missing the field.
+    # See docs/METHODS.md §7.2.
     if net_x is None:
         gpx, _ = _puck_xy(frames[gf_idx])
         net_x = math.copysign(NET_X, gpx) if gpx is not None else None
@@ -874,16 +865,13 @@ def process_goal(frames, goal, position_map, home_team_id=None):
                 # put the puck at the scorer); it is a consistency check that the
                 # window average did not drift off the anchor.
                 audit["scorer_match_shotframe"] = int(sf_near_pid == scorer)
-            # CONFIDENCE, now graded against an outside source.
-            #
-            # The old flag asked only whether we found a real puck contact, which
-            # the detection is built to find — it could not fail informatively.
-            # This one also asks whether the frame we picked sits where the NHL
-            # said the shot was. Measured rates for the failure modes it catches:
-            # the `global-min` fallback is >20 ft wrong 57% of the time (n=150),
-            # and goals we place beyond 70 ft are wrong 29% of the time, almost
-            # always because the chosen frame is an earlier touch in the same
-            # possession rather than the release.
+            # CONFIDENCE, graded against an outside source: not just whether we
+            # found a real puck contact (which the detection is built to find and
+            # so cannot fail informatively), but whether the frame we picked sits
+            # where the NHL said the shot was. Failure modes it catches: the
+            # `global-min` fallback is >20 ft wrong 57% of the time (n=150), and
+            # goals we place beyond 70 ft are wrong 29% of the time, almost always
+            # because the chosen frame is an earlier touch in the same possession.
             contact_ok = (sa["method"] == "local-min"
                           and sa["scorer_dist_ft"] is not None
                           and sa["scorer_dist_ft"] <= SCORER_MAX_CONTACT_FT)

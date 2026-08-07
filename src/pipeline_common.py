@@ -166,23 +166,24 @@ def _sleep(delay):
 def to_std(raw_x, raw_y):
     """Inches-from-corner -> feet-from-center (docs/METHODS.md §3). None-safe.
 
-    THE Y AXIS IS INVERTED RELATIVE TO THE RAW FEED, and getting this backwards
-    is an easy mistake to make. The sprite's raw y grows toward the opposite
-    board from the NHL play-by-play convention, so the intuitive
-    `raw_y/12 - 42.5` mirrors the rink about the centre line. Measured on 2,500
-    goals against the PBP's own recorded shot coordinates: with the negation the
-    tracked puck sits a median 1.9 ft from where the NHL scorer placed the shot
-    and 91% are within 10 ft; without it, 15.7 ft and 35%, and the y correlation
-    is -0.943 instead of +0.943 (src/shotframe_validation.py, check 1).
+    Raw coordinates are inches from the rink corner at standard (-100, +42.5);
+    raw x spans 0-2400 in (200 ft) and raw y spans 0-1020 in (85 ft).
 
-    THE SIGN IS INVISIBLE TO EVERY DISTANCE THIS PIPELINE EMITS, which is what
-    makes it dangerous — an inverted axis will not show up in any of the outputs
-    below. Distances reduce y to a `math.hypot` and the target net sits at
-    y = 0: player-to-puck distance negates both operands, so the difference is
-    unchanged, and distance-to-net uses |y| alone. The sign matters only to
-    things that read it directly — rink maps, left/right-side splits, and joins
-    against PBP coordinates — so it is fixed here at the source rather than at
-    each use.
+    THE Y AXIS IS INVERTED RELATIVE TO THE RAW FEED. The sprite's raw y grows
+    toward the opposite board from the NHL play-by-play convention, so the
+    intuitive `raw_y/12 - 42.5` mirrors the rink about the centre line. Measured
+    on 2,500 goals against the PBP's own recorded shot coordinates: with the
+    negation the tracked puck sits a median 1.9 ft from where the NHL scorer
+    placed the shot and 91% are within 10 ft; without it, 15.7 ft and 35%, and
+    the y correlation is -0.943 instead of +0.943
+    (src/shotframe_validation.py, check 1).
+
+    THE SIGN IS INVISIBLE TO EVERY DISTANCE THIS PIPELINE EMITS. Distances
+    reduce y to a `math.hypot` and the target net sits at y = 0: player-to-puck
+    distance negates both operands, so the difference is unchanged, and
+    distance-to-net uses |y| alone. The sign matters only to things that read it
+    directly — rink maps, left/right-side splits, and joins against PBP
+    coordinates — so it is fixed here at the source rather than at each use.
     """
     if raw_x is None or raw_y is None or raw_x == "" or raw_y == "":
         return None, None
