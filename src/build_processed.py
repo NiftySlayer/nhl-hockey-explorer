@@ -750,8 +750,8 @@ def build_shifts(lay: pc.Layout, season):
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out, index=False)
     ngames = df["game_id"].nunique() if len(df) else 0
-    print(f"    shifts/{season}.parquet: {len(df)} stints across {ngames} games"
-          f" ({n_html_games} recovered from HTML reports)")
+    print(f"    shifts/{season}.parquet: {len(df)} shifts across {ngames} games"
+          f" ({n_html_games} games recovered from HTML reports)")
     return len(df)
 
 
@@ -787,7 +787,7 @@ def process_goal(frames, goal, position_map, home_team_id=None):
         "nearest_ft_shotframe": None,
         "tracking_shooter_goalframe": None,
         "tracking_shooter_shotframe": None,
-        "scorer_match_goalframe": None,   # expected ~0%; see METHODS.md §7.1
+        "scorer_match_goalframe": None,   # expected ~5%; see METHODS.md §7.1
         "scorer_match_shotframe": None,   # consistency check, not validation
         "scorer_dist_shotframe": None,    # puck-to-scorer at the chosen frame
         "shot_net_dist_ft": None,         # implied shot distance -- sanity check
@@ -990,7 +990,7 @@ def build_events_and_audit(lay: pc.Layout, season, position_map):
           f"from {n_sprites}/{n_goals} goals with sprites")
     print(f"    completeness_{season}.parquet: {len(au)} goals")
     print(f"      scorer-match @ goal frame : {match_rate('scorer_match_goalframe'):.1f}%  "
-          f"(expected ~0% — the puck is in the net)")
+          f"(expected ~5% — the puck is in the net, so the goalie is nearest)")
     print(f"      scorer-match @ shot frame : {match_rate('scorer_match_shotframe'):.1f}%  "
           f"(consistency check — see shotframe_validation.py)")
     return len(ev), len(au)
