@@ -44,6 +44,21 @@ edge/{season}/{skater|goalie}/{player}.json NHL Edge season aggregates
 | 2024-25 | 11,829 | 2.43 GB | 0.23 GB |
 | 2025-26 | 12,752 | 2.57 GB | 0.24 GB |
 
+**These are the feed's own bytes, so nothing is converted.** Sprite coordinates
+are inches from the rink corner at standard `(-100, +42.5)`, spanning 0–2400 and
+0–1020 in; `timeStamp` is deciseconds since the Unix epoch. Converting to feet
+from centre ice is `pipeline_common.to_std`:
+
+```python
+std_x = raw_x / 12 - 100
+std_y = 42.5 - raw_y / 12     # subtraction FROM 42.5 — see METHODS §3
+```
+
+The second line is the one to get right. The sprite's raw y runs opposite to the
+play-by-play's, and because every distance reduces to a `hypot` around a net at
+`y = 0`, an inverted y is invisible in distances but wrong in rink maps and
+play-by-play joins.
+
 JSON compresses hard — 0.68 GB against 7.18 GB raw, about 9.5% of the original.
 
 A **sha256 for every individual file** is in `manifest-{season}.jsonl` (one JSON
