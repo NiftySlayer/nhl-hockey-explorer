@@ -20,6 +20,7 @@ processed/                              re-derivable from raw/, always
   shots/{season}.parquet
   shifts/{season}.parquet
   events/{season}.parquet
+  tracking/{season}.parquet                 opt-in; see --steps tracking
   stints/{season}.parquet
   stint_players/{season}.parquet
   edge_skaters/{season}.parquet
@@ -62,6 +63,98 @@ One row per (goal × on-ice player). The tracking output.
 
 Either distance may be null when that player had no valid coordinates in the
 relevant frame window. Rows are the union of players seen at either frame.
+
+---
+
+## `processed/tracking/{season}.parquet`
+
+One row per (goal × frame × entity) — the whole clip, not just the two instants
+`events/` keeps. Every 0.1 s frame of every goal's sprite, one row per on-ice
+player and one for the puck.
+
+**Opt-in.** It is not built by `--steps all`, because it is two orders of
+magnitude larger than anything else here and nothing else in the pipeline reads
+it. Build it with either:
+
+```
+python src/run_pipeline.py    --root . --steps tracking --seasons 20242025
+python src/build_processed.py --root . --seasons 20242025 --tracking
+```
+
+It reads only `raw/`, so it can run before, after, or without the rest of the
+build. Goals with no sprite are absent; `audit/completeness_{season}.parquet`
+says which and why.
+
+Order of magnitude: the sprites hold ~1.0–1.1M frames per season
+(`frame_count` in the audit tables) at ~13 entities each, so expect on the order
+of 14M rows per season. That is arithmetic from a measured frame count, not a
+measured row count.
+
+**Goal** — constant within a goal.
+
+| Column | Type | Notes |
+|---|---|---|
+| `season`, `game_id`, `event_id` | str, int, int | `event_id` joins to the sprite filename, the play-by-play `eventId`, `events/` and `completeness_` |
+| `period`, `time_in_period`, `abs_game_seconds` | int, str, int | |
+| `situation_code`, `shot_type` | str | |
+| `home_team_id`, `away_team_id` | int | |
+| `scoring_team_id`, `conceding_team_id` | int | |
+| `pbp_scorer_id` | int | |
+| `net_x` | float | x of the attacked net in absolute coordinates: `+89` or `−89` |
+| `net_source` | str | `pbp` (from `homeTeamDefendingSide`) or `puck-sign` (fallback). See [METHODS §3](METHODS.md) |
+| `flip` | int | `+1` or `−1`, the rotation applied to get the attack frame |
+| `goal_frame_idx`, `shot_frame_idx` | int | The same indices as `goalframe_index` / `shotframe_index` in `completeness_`. `shot_frame_idx` is null when the scorer was never tracked |
+
+**Frame**
+
+| Column | Type | Notes |
+|---|---|---|
+| `frame_idx` | int | 0-based index into the sprite's frame array |
+| `time_stamp` | int | The feed's own value: deciseconds since the Unix epoch, stepping exactly +1 per frame ([FIELD_REFERENCE](FIELD_REFERENCE.md)) |
+| `seconds_to_goal` | float | `0.1 × (frame_idx − goal_frame_idx)`. Negative before the goal, positive in the post-goal dead time |
+| `seconds_to_shot` | float | Same against `shot_frame_idx`; null when no shot frame was detected |
+| `is_goal_frame`, `is_shot_frame` | bool | Never null, so they work directly as masks. Both are false on every frame of a goal whose index is null |
+| `n_onice` | int | Non-puck entities the tracker reported in this frame. **Not a legal roster — read the caveat below** |
+
+**Entity**
+
+| Column | Type | Notes |
+|---|---|---|
+| `entity_id` | int | The sprite's own per-game tracking-tag id. **Never join on it** ([FIELD_REFERENCE](FIELD_REFERENCE.md)) |
+| `entity_type` | str | `player` or `puck` |
+| `player_id` | int | The join key. Null on puck rows |
+| `team_id`, `team_abbrev`, `sweater_number` | int, str, int | Display fields. Null on puck rows |
+| `position_code` | str | From the play-by-play roster; `"G"` for goalies |
+| `is_goalie`, `is_scorer`, `is_assist1`, `is_assist2` | bool | Null on puck rows |
+| `is_scoring_team`, `is_home` | bool | Null on puck rows |
+
+**Coordinates** — all in feet.
+
+| Column | Type | Notes |
+|---|---|---|
+| `x`, `y` | float | Absolute standard rink coordinates, x ∈ [−100, 100], y ∈ [−42.5, 42.5]. The same convention as every other table here |
+| `x_att`, `y_att` | float | The attack frame: the rink rotated so the **attacked** net — the net of the team that conceded — is always the one at x = +89 |
+| `dist_to_net_ft` | float | Feet to the attacked net, `hypot(89 − x_att, y_att)` |
+| `angle_to_net_deg` | float | `degrees(atan2(y_att, 89 − x_att))`. 0° is straight out from the net along the centre line, growing toward +`y_att` |
+| `dist_to_puck_ft` | float | Feet to the puck **in that same frame**. Null on puck rows and wherever the puck has no coordinates |
+
+The attack-frame columns are null when the net could not be resolved at all.
+`dist_to_puck_ft` is *not* window-averaged, unlike `d_shotframe` in `events/`:
+this is a continuous series, so smoothing is the consumer's decision.
+
+⚠️ **The table contains post-goal frames, and they are not clean.** The clip
+keeps recording for seconds after the puck goes in, and on overtime and
+game-winning goals the scoring team empties its bench into the tracker's view —
+frames after the goal have been observed carrying 20–35 "on-ice" entities
+([METHODS §6](METHODS.md)). Those frames are here by design; the goal instant is
+marked, not enforced. Filter on `seconds_to_goal <= 0`, or on `n_onice`, before
+treating a frame's entity set as a roster.
+
+**Reading it in pandas.** `player_id`, `team_id`, `sweater_number` and
+`shot_frame_idx` are stored as proper integers with nulls. Plain
+`pd.read_parquet` converts those to `float64` (so a player id reads as
+`8478402.0` and will not join against an int column); pass
+`dtype_backend="pyarrow"`, or filter to `entity_type == "player"` first.
 
 ---
 

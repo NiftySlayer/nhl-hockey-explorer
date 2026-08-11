@@ -90,6 +90,43 @@ fixed at the source rather than at each use.
 silently. Maximum observed player-to-puck distance is 187.5 ft against a 217 ft
 rink diagonal.
 
+### 3.1 The attack frame
+
+Absolute coordinates are the right default — they are what the play-by-play uses
+and what every other table here emits — but they make goals incomparable: a play
+is running toward `+89` in one clip and toward `−89` in the next, and teams swap
+ends every period. `processed/tracking/{season}.parquet` therefore carries a
+second set of coordinates, `x_att` / `y_att`, in which the **attacked net** — the
+net of the team that conceded — is always the one at `x = +89`.
+
+**Which net.** The same rule the shot detector uses, `pipeline_common.
+pbp_target_net_x`: `homeTeamDefendingSide` gives the end the home team defends in
+that period, so the home team attacks the other one, and `eventOwnerTeamId` says
+which side scored. This comes from the play-by-play and depends on no tracking
+frame. Where the field is absent the fallback is the sign of puck-x at the goal
+instant, recorded per goal in the `net_source` column. Prefer `pbp` rows: the
+sign rule is wrong on 251 of 23,888 goals (1.05%), where the puck is fished out
+of the net and sent back up ice before the clip ends, so it never comes to rest,
+the dead-run trim finds nothing, and by the last frame puck-x has crossed centre
+ice ([§7.2](#72-choosing-the-shot-frame)).
+
+**The flip is a rotation, not a mirror.** When the attacked net is at `−89`, both
+coordinates are negated:
+
+```
+x_att = -x        y_att = -y        (flip = -1)
+x_att =  x        y_att =  y        (flip = +1)
+```
+
+Negating x alone would mirror the rink and silently swap the wings on half the
+goals — a play down the left wing would read as a right-wing play whenever the
+clip happened to run the other way. Rotating by 180° preserves handedness, which
+is what makes the two halves of the archive comparable. `flip` is stored per goal
+so the transform is reversible.
+
+`dist_to_net_ft` and `angle_to_net_deg` are derived from the attack frame, with
+the net at `(89, 0)` and 0° pointing straight out along the centre line.
+
 ---
 
 ## 4. Frame rate
