@@ -108,6 +108,11 @@ hardcodes `SECONDS_PER_FRAME = 0.1`.
 ✅ 119–121 frames in 2023-24 (~12 s), ~140 in later seasons (~14 s), ~210 in
 overtime. Window length varies; the rate does not.
 
+The whole array is available in tabular form: `processed/tracking/{season}.parquet`
+([SCHEMA](SCHEMA.md)) is one row per entity per frame, with the fields above
+decoded — `x`/`y` in feet, `timeStamp` carried through verbatim, and `entity_type`
+separating the puck from the players. It is opt-in (`--steps tracking`).
+
 ---
 
 ## 2. Play-by-play — `api-web.nhle.com/v1/gamecenter/{game}/play-by-play`

@@ -20,6 +20,14 @@ Produces:
   audit/completeness_{season}.parquet  the reconciliation table (METHODS.md §9)
                                         plus per-goal shot-detection confidence
 
+Opt-in, behind --tracking because it is by far the largest table:
+  processed/tracking/{season}.parquet  goal x frame x entity. Every 0.1 s frame
+                                        of every goal's sprite, one row per
+                                        player and one for the puck, in absolute
+                                        rink feet AND in attack-oriented
+                                        coordinates with the conceding team's
+                                        net always at x = +89
+
 Shot-frame distances are SCORER-ANCHORED: the play-by-play names the scorer, so
 we search for the frame where the puck was last at that player rather than
 inferring a shooter from puck kinematics. The frames it picks put the puck a
@@ -38,6 +46,8 @@ import math
 from pathlib import Path
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 import pipeline_common as pc
 import shifts_html
@@ -997,8 +1007,364 @@ def build_events_and_audit(lay: pc.Layout, season, position_map):
 
 
 # ---------------------------------------------------------------------------
+# tracking/{season}.parquet  (goal x frame x entity — the whole clip)
+# ---------------------------------------------------------------------------
+# events/{season}.parquet reduces each clip to two instants. This keeps all of
+# it: every frame, every entity, in long format. ~140 frames x ~13 entities x
+# ~8,000 goals is on the order of 14M rows per season, which is why it is
+# opt-in and why it streams to disk rather than going through a DataFrame.
+#
+# TWO COORDINATE FRAMES PER ROW.
+#   x, y          absolute standard rink feet (+/-100 x, +/-42.5 y), the PBP
+#                 convention, straight out of pc.to_std().
+#   x_att, y_att  the same point after flipping the rink so the ATTACKED net --
+#                 the net of the team that conceded -- is always the one at
+#                 x = +89.
+# The flip is a 180-degree ROTATION (negate both x and y), not a mirror of x
+# alone. Rotating preserves handedness, so a play down the left wing is still
+# down the left wing after the flip; mirroring x would silently swap the wings
+# on every goal that needed flipping.
 
-def build_season(lay: pc.Layout, season, position_map):
+TRACKING_FLUSH_ROWS = 100_000   # rows buffered before a parquet row group
+
+TRACKING_SCHEMA = pa.schema([
+    # --- goal (constant within a goal; dictionary-encodes to almost nothing) ---
+    ("season", pa.string()),
+    ("game_id", pa.int64()),
+    ("event_id", pa.int64()),
+    ("period", pa.int32()),
+    ("time_in_period", pa.string()),
+    ("abs_game_seconds", pa.int32()),
+    ("situation_code", pa.string()),
+    ("shot_type", pa.string()),
+    ("home_team_id", pa.int32()),
+    ("away_team_id", pa.int32()),
+    ("scoring_team_id", pa.int32()),
+    ("conceding_team_id", pa.int32()),
+    ("pbp_scorer_id", pa.int64()),
+    ("net_x", pa.float32()),
+    ("net_source", pa.string()),
+    ("flip", pa.int8()),
+    ("goal_frame_idx", pa.int32()),
+    ("shot_frame_idx", pa.int32()),
+    # --- frame ---
+    ("frame_idx", pa.int32()),
+    ("time_stamp", pa.int64()),
+    ("seconds_to_goal", pa.float32()),
+    ("seconds_to_shot", pa.float32()),
+    ("is_goal_frame", pa.bool_()),
+    ("is_shot_frame", pa.bool_()),
+    ("n_onice", pa.int16()),
+    # --- entity ---
+    ("entity_id", pa.int32()),
+    ("entity_type", pa.string()),
+    ("player_id", pa.int64()),
+    ("team_id", pa.int32()),
+    ("team_abbrev", pa.string()),
+    ("sweater_number", pa.int32()),
+    ("position_code", pa.string()),
+    ("is_goalie", pa.bool_()),
+    ("is_scorer", pa.bool_()),
+    ("is_assist1", pa.bool_()),
+    ("is_assist2", pa.bool_()),
+    ("is_scoring_team", pa.bool_()),
+    ("is_home", pa.bool_()),
+    # --- coordinates ---
+    ("x", pa.float32()),
+    ("y", pa.float32()),
+    ("x_att", pa.float32()),
+    ("y_att", pa.float32()),
+    ("dist_to_net_ft", pa.float32()),
+    ("angle_to_net_deg", pa.float32()),
+    ("dist_to_puck_ft", pa.float32()),
+])
+
+
+class _BatchedParquetWriter:
+    """
+    Stream row dicts into one parquet file in fixed-schema batches.
+
+    Every other builder here collects a list of dicts and hands it to
+    pd.DataFrame in one go. At 14M rows that costs well over 10 GB, so this
+    fans each row out into per-column lists and flushes a row group every
+    `flush_rows`. The schema is declared rather than inferred because an
+    all-null chunk (say a flush in which every goal fell back to a null
+    net_source) would otherwise infer a different type and be rejected.
+    """
+
+    def __init__(self, path: Path, schema, flush_rows=TRACKING_FLUSH_ROWS):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.schema = schema
+        self.flush_rows = flush_rows
+        self.n_rows = 0
+        self._cols = {name: [] for name in schema.names}
+        self._buffered = 0
+        self._writer = pq.ParquetWriter(path, schema, compression="snappy")
+
+    def append(self, row: dict):
+        for name, col in self._cols.items():
+            col.append(row.get(name))
+        self._buffered += 1
+        self.n_rows += 1
+        if self._buffered >= self.flush_rows:
+            self.flush()
+
+    def flush(self):
+        if not self._buffered:
+            return
+        self._writer.write_table(
+            pa.Table.from_pydict(self._cols, schema=self.schema))
+        for col in self._cols.values():
+            col.clear()
+        self._buffered = 0
+
+    def close(self):
+        self.flush()
+        self._writer.close()
+
+
+def _round(v, digits):
+    """round(), None-safe: an unresolvable coordinate stays null, not 0.0."""
+    return None if v is None else round(v, digits)
+
+
+def _as_int(v):
+    """Feed ints, None-safe. The puck's id/team/sweater fields arrive as ''."""
+    if v is None or v == "":
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def locate_goal_and_shot_frames(frames, goal, home_team_id):
+    """
+    Goal instant, shot frame and target net for one goal's sprite.
+
+    Mirrors the first half of process_goal(): same helpers, same order, same
+    arguments, so the indices returned here equal the goalframe_index and
+    shotframe_index already published in audit/completeness_{season}.parquet.
+
+    process_goal() is deliberately NOT refactored into a shared code path. Its
+    outputs are measured and quoted throughout docs/METHODS.md §7 (median
+    2.04 ft from the PBP's own shot coordinate, the confidence-grade rates), and
+    what is duplicated below is ten lines of call sequencing, not logic — every
+    function it calls is the one process_goal calls. The equality of the two is
+    asserted against the audit table rather than enforced by shared code.
+
+    One deliberate difference: the net is resolved here even when the shot
+    detection bails (no scorer in the PBP, or a scorer who never appears in a
+    frame). process_goal only records a net_source when the detector ran, but
+    every row of the tracking table needs a net to flip against.
+
+    Returns (gf_idx, sf_idx, net_x, net_source); any of them may be None.
+    """
+    gf = valid_puck_frame_from_end(frames)
+    if gf is None:
+        return None, None, None, None
+    gf_idx, _ = goal_instant(frames, gf[0])
+
+    # PBP first, puck sign only as fallback — see the note in
+    # scorer_anchored_shot_frame for why the sign rule is not trusted alone.
+    net_x = pc.pbp_target_net_x(goal, home_team_id, NET_X)
+    net_source = "pbp" if net_x is not None else None
+    if net_x is None:
+        gpx, _ = _puck_xy(frames[gf_idx])
+        if gpx is not None:
+            net_x, net_source = math.copysign(NET_X, gpx), "puck-sign"
+
+    # Passing net_x in is what process_goal does. It cannot change which frame
+    # is chosen — net_x only feeds the reported net_dist_ft/netward fields, not
+    # the scorer-distance search — so the index still matches the audit table
+    # on goals where the PBP had no defending side.
+    sf_idx = None
+    try:
+        sf_idx = scorer_anchored_shot_frame(
+            frames, goal.get("scoring_player_id"), gf_idx, net_x=net_x)["index"]
+    except Exception:  # detection is fallible by design; never crash a goal
+        pass
+    return gf_idx, sf_idx, net_x, net_source
+
+
+def tracking_rows(frames, goal, position_map, base, gf_idx, sf_idx, net_x,
+                  net_source):
+    """Yield one row dict per entity per frame for a single goal's sprite."""
+    flip = None if net_x is None else (1 if net_x > 0 else -1)
+    scorer = goal.get("scoring_player_id")
+    a1, a2 = goal.get("assist1_player_id"), goal.get("assist2_player_id")
+    scoring_team = base["scoring_team_id"]
+    home_id = base["home_team_id"]
+
+    goal_meta = {
+        **base,
+        "net_x": net_x,
+        "net_source": net_source,
+        "flip": flip,
+        "goal_frame_idx": gf_idx,
+        "shot_frame_idx": sf_idx,
+    }
+
+    def offset_s(fi, anchor):
+        if anchor is None:
+            return None
+        return round((fi - anchor) * pc.SECONDS_PER_FRAME, 2)
+
+    for fi, frame in enumerate(frames):
+        oi = frame.get("onIce") or {}
+        if not oi:
+            continue
+        puck_x, puck_y = _puck_xy(frame)
+        frame_meta = {
+            **goal_meta,
+            "frame_idx": fi,
+            "time_stamp": _as_int(frame.get("timeStamp")),
+            "seconds_to_goal": offset_s(fi, gf_idx),
+            "seconds_to_shot": offset_s(fi, sf_idx),
+            # Plain booleans, never null, so they work as masks. "No shot frame
+            # was detected" is carried by a null shot_frame_idx (and a null
+            # seconds_to_shot), not by a null flag -- a nullable boolean column
+            # cannot be used to index a DataFrame, which for a table meant to be
+            # filtered on these two is a wart not worth the extra distinction.
+            "is_goal_frame": fi == gf_idx,
+            "is_shot_frame": fi == sf_idx,
+            # Counts the entities the tracker reported, NOT a legal roster. On
+            # overtime and game-winning goals the scoring bench empties and gets
+            # picked up, so frames after the goal can carry 20-35 entities (see
+            # valid_puck_frame_from_end). Those frames are in this table by
+            # design; filter on seconds_to_goal <= 0 or on this count.
+            "n_onice": sum(1 for k in oi if k != "1"),
+        }
+
+        for key, ent in oi.items():
+            ex, ey = pc.to_std(ent.get("x"), ent.get("y"))
+            if ex is None:
+                continue
+            is_puck = (key == "1")
+            pid = None if is_puck else _as_int(ent.get("playerId"))
+            if not is_puck and pid is None:
+                continue    # untagged entity; matches player_records_at
+            team_id = None if is_puck else _as_int(ent.get("teamId"))
+            pos = position_map.get(pid) if pid is not None else None
+
+            if flip is None:
+                x_att = y_att = dist_net = angle_net = None
+            else:
+                x_att, y_att = ex * flip, ey * flip
+                dx = NET_X - x_att
+                dist_net = math.hypot(dx, y_att)
+                # 0 deg is straight out from the net along the centre line,
+                # growing toward +y_att.
+                angle_net = math.degrees(math.atan2(y_att, dx))
+
+            # NOT window-averaged, unlike the d_* columns in events/: this is a
+            # continuous series, so smoothing is the consumer's decision.
+            d_puck = (None if is_puck or puck_x is None
+                      else math.hypot(ex - puck_x, ey - puck_y))
+
+            yield {
+                **frame_meta,
+                "entity_id": _as_int(key),
+                "entity_type": "puck" if is_puck else "player",
+                "player_id": pid,
+                "team_id": team_id,
+                "team_abbrev": (None if is_puck
+                                else (ent.get("teamAbbrev") or None)),
+                "sweater_number": (None if is_puck
+                                   else _as_int(ent.get("sweaterNumber"))),
+                "position_code": pos,
+                "is_goalie": None if is_puck else (pos == "G"),
+                "is_scorer": None if is_puck else (pid == scorer),
+                "is_assist1": None if is_puck else (pid == a1),
+                "is_assist2": None if is_puck else (pid == a2),
+                "is_scoring_team": (None if is_puck or scoring_team is None
+                                    else team_id == scoring_team),
+                "is_home": (None if is_puck or home_id is None
+                            else team_id == home_id),
+                "x": round(ex, 3),
+                "y": round(ey, 3),
+                "x_att": _round(x_att, 3),
+                "y_att": _round(y_att, 3),
+                "dist_to_net_ft": _round(dist_net, 3),
+                "angle_to_net_deg": _round(angle_net, 2),
+                "dist_to_puck_ft": _round(d_puck, 3),
+            }
+
+
+def build_tracking(lay: pc.Layout, season, position_map):
+    """
+    Every frame of every goal's sprite, long format, one row per entity.
+
+    Reads only raw/, like the rest of the build, so it is re-runnable offline.
+    Goals whose sprite is missing or unparseable are skipped silently: they are
+    already accounted for, with a reason, in audit/completeness_{season}.parquet.
+    """
+    out = lay.tracking(season)
+    writer = _BatchedParquetWriter(out, TRACKING_SCHEMA)
+    n_goals = n_sprites = n_frames = 0
+
+    try:
+        for pbp_path in sorted(lay.raw_pbp_dir(season).glob("*.json")):
+            pbp = load_json(pbp_path)
+            if not isinstance(pbp, dict):
+                continue
+            game = pbp.get("id")
+            home_id = (pbp.get("homeTeam") or {}).get("id")
+            away_id = (pbp.get("awayTeam") or {}).get("id")
+            for goal in pc.enumerate_goals(pbp):
+                n_goals += 1
+                eid = goal["event_id"]
+                sp_path = lay.sprite(season, game, eid)
+                if not pc.exists_nonempty(sp_path):
+                    continue
+                frames = load_json(sp_path)
+                if not isinstance(frames, list) or not frames:
+                    continue
+                n_sprites += 1
+                n_frames += len(frames)
+
+                scoring_team = goal.get("event_owner_team_id")
+                conceding = None
+                if scoring_team is not None and None not in (home_id, away_id):
+                    conceding = away_id if scoring_team == home_id else home_id
+                period = goal.get("period")
+                tip = goal.get("time_in_period")
+                base = {
+                    "season": season,
+                    "game_id": game,
+                    "event_id": eid,
+                    "period": period,
+                    "time_in_period": tip,
+                    "abs_game_seconds": pc.abs_game_seconds(period, tip),
+                    "situation_code": goal.get("situation_code"),
+                    "shot_type": goal.get("shot_type"),
+                    "home_team_id": home_id,
+                    "away_team_id": away_id,
+                    "scoring_team_id": scoring_team,
+                    "conceding_team_id": conceding,
+                    "pbp_scorer_id": goal.get("scoring_player_id"),
+                }
+                gf_idx, sf_idx, net_x, net_source = locate_goal_and_shot_frames(
+                    frames, goal, home_id)
+                for row in tracking_rows(frames, goal, position_map, base,
+                                         gf_idx, sf_idx, net_x, net_source):
+                    writer.append(row)
+
+                if n_sprites % 1000 == 0:
+                    print(f"      {n_sprites} sprites, {writer.n_rows} rows...",
+                          flush=True)
+    finally:
+        writer.close()
+
+    print(f"    tracking/{season}.parquet: {writer.n_rows} "
+          f"(goal x frame x entity) rows from {n_sprites}/{n_goals} goals "
+          f"with sprites ({n_frames} frames)")
+    return writer.n_rows
+
+
+# ---------------------------------------------------------------------------
+
+def build_season(lay: pc.Layout, season, position_map, tracking=False):
     print(f"\n=== BUILD season {season} ===", flush=True)
     build_games(lay, season)
     build_faceoffs(lay, season)
@@ -1007,18 +1373,27 @@ def build_season(lay: pc.Layout, season, position_map):
     build_events_and_audit(lay, season, position_map)
     if (lay.root / "raw" / "edge" / season).exists():
         build_edge(lay, season)
+    # Last, and only on request: it is the largest table by two orders of
+    # magnitude and nothing else in the build depends on it.
+    if tracking:
+        build_tracking(lay, season, position_map)
 
 
 def main():
     ap = argparse.ArgumentParser(description="raw -> processed build (offline).")
     ap.add_argument("--seasons", nargs="+", default=["20242025"])
     ap.add_argument("--root", default=".")
+    ap.add_argument("--tracking", action="store_true",
+                    help="also build processed/tracking/{season}.parquet, the "
+                         "full goal x frame x entity clip table (~14M rows per "
+                         "season). Off by default: it is much the largest and "
+                         "slowest table and nothing else depends on it.")
     args = ap.parse_args()
 
     lay = pc.Layout(args.root)
     position_map = build_players(lay)  # global, from all raw pbp on disk
     for season in args.seasons:
-        build_season(lay, season, position_map)
+        build_season(lay, season, position_map, tracking=args.tracking)
 
 
 if __name__ == "__main__":

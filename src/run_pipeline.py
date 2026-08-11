@@ -13,6 +13,11 @@ Steps are decoupled by design (docs/SCHEMA.md):
   edge         — an isolated second network job for the Edge season aggregates.
   build        — offline transform raw/ -> processed/ + audit/; re-runnable.
   stints       — offline; sweeps the shift tables into stint intervals.
+  tracking     — offline, OPT-IN, never part of `all`; re-reads the sprites and
+                 writes every 0.1 s frame of every goal in long format
+                 (processed/tracking/, ~14M rows per season). Independent of
+                 build: it reads raw/ only, so it can run before, after, or
+                 without it.
 
 Because scrape is idempotent (skips files already on disk), re-running after an
 interruption resumes for free. Because build reads only raw/, you can re-derive
@@ -30,6 +35,9 @@ Typical use:
     # Re-build every table from an existing raw archive (no network):
     python src/run_pipeline.py --root . --steps build --seasons 20242025
 
+    # The full continuous tracking table for one season (opt-in, no network):
+    python src/run_pipeline.py --root . --steps tracking --seasons 20242025
+
 If you run the steps by hand, do NOT skip shifts-html. The JSON shift feed
 answers HTTP 200 with an empty body for whole blocks of games, so the build
 falls back to HTML reports — which are only on disk if that step ran. Skipping
@@ -45,7 +53,7 @@ import pipeline_common as pc
 import shifts_html
 from scrape_raw import scrape_season
 from edge_scrape import scrape_edge_season
-from build_processed import build_players, build_season
+from build_processed import build_players, build_season, build_tracking
 from stints import build_stints
 
 
@@ -58,7 +66,7 @@ def main():
                          "20242025 20232024 20252026")
     ap.add_argument("--steps",
                     choices=["all", "scrape", "shifts-html", "edge", "build",
-                             "stints"],
+                             "stints", "tracking"],
                     default="all")
     ap.add_argument("--no-edge", action="store_true",
                     help="skip the NHL Edge season-level pull in --steps all")
@@ -106,6 +114,15 @@ def main():
     if args.steps in ("all", "stints"):
         for season in args.seasons:
             build_stints(lay, season)
+
+    # Deliberately NOT in `all`. The clip table is ~14M rows per season, two
+    # orders of magnitude larger than anything else here, and nothing else in
+    # the pipeline reads it. Ask for it explicitly.
+    if args.steps == "tracking":
+        position_map = build_players(lay)
+        for season in args.seasons:
+            print(f"\n=== TRACKING season {season} ===", flush=True)
+            build_tracking(lay, season, position_map)
 
     print(f"\nALL DONE in {(time.time()-t0)/60:.1f} min. "
           f"raw/ processed/ audit/ under {lay.root.resolve()}")

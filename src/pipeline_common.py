@@ -270,6 +270,10 @@ class Layout:
     def faceoffs(self, season):
         return self.root / "processed" / "faceoffs" / f"{season}.parquet"
 
+    def tracking(self, season):
+        # goal x frame x entity — the continuous clip, built opt-in
+        return self.root / "processed" / "tracking" / f"{season}.parquet"
+
     def edge_skaters(self, season):
         return self.root / "processed" / "edge_skaters" / f"{season}.parquet"
 

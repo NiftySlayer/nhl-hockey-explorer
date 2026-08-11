@@ -97,6 +97,12 @@ Two findings from that work:
 | `processed/games`, `faceoffs`, `players` | — | Dimension tables |
 | `audit/completeness_{season}.parquet` | play-by-play goal | One row per goal: whether tracking resolved, how, and how much to trust it |
 
+Plus one opt-in table, not built unless asked for:
+
+| Table | Grain | Contents |
+|---|---|---|
+| `processed/tracking/{season}.parquet` | goal × frame × entity | The whole clip rather than one instant: every 0.1 s frame of every goal, one row per player and one for the puck, in absolute rink feet **and** in attack-oriented coordinates with the conceding team's net always at x = +89 |
+
 Column-level detail in [docs/SCHEMA.md](docs/SCHEMA.md).
 
 Coverage of regulation and overtime goals, by season: the sprite is present and
@@ -139,8 +145,20 @@ To check shot detection against the play-by-play's coordinates:
 python src/shotframe_validation.py --root . --seasons 20242025 --sample 3000
 ```
 
-Individual steps (`scrape`, `shifts-html`, `edge`, `build`, `stints`) can be run
-alone with `--steps`, and each module also has its own CLI.
+The continuous tracking table is opt-in and offline, and reads only `raw/`, so
+it can be built at any point once the sprites are on disk:
+
+```bash
+python src/run_pipeline.py --root . --steps tracking --seasons 20242025
+```
+
+It is excluded from `--steps all` deliberately: at roughly 14M rows per season
+it is two orders of magnitude larger than anything else here, and nothing else
+in the pipeline reads it.
+
+Individual steps (`scrape`, `shifts-html`, `edge`, `build`, `stints`,
+`tracking`) can be run alone with `--steps`, and each module also has its own
+CLI.
 
 ⚠️ **If you run steps by hand, do not skip `shifts-html`.** The JSON shift feed
 answers HTTP 200 with an empty body for whole blocks of games, and the build
@@ -160,7 +178,7 @@ Python puts the running script's directory on `sys.path`.
 | `scrape_raw.py` | Sprites, play-by-play and shift charts, written verbatim |
 | `shifts_html.py` | HTML TOI fallback for games the JSON shift feed serves empty |
 | `edge_scrape.py` | NHL Edge season aggregates. Isolated second source; reaches back to 2021-22 |
-| `build_processed.py` | The offline transform: shot-frame detection, per-player distances, the completeness audit |
+| `build_processed.py` | The offline transform: shot-frame detection, per-player distances, the completeness audit, and (opt-in) the continuous tracking table |
 | `stints.py` | Sweeps shifts into stint intervals and on-ice rosters |
 | `run_pipeline.py` | One command for the whole thing |
 | `shotframe_validation.py` | Grades the inferred shot against the play-by-play's goal coordinates |
