@@ -64,7 +64,7 @@ measured over 1.07 million tracked entity positions and 3,100 goals:
 
 | Check | Result |
 |---|---|
-| Raw ranges | `x` spans 0–2400 in (= 200 ft), `y` spans 0–1020 in (= 85 ft). 99.98% and 99.64% of observations fall inside; the overshoots are a few inches, players against the boards |
+| Raw ranges | `x` spans 0–2400 in (= 200 ft), `y` spans 0–1020 in (= 85 ft). 99.98% and 99.60% of observations fall inside; the overshoots are players against the boards, and they stop at exactly **12 in (1.0 ft)** past the edge — measured over all 14.3M tracked positions in 2024-25, the extremes are `x` ∈ [−100.99, +100.95] and `y` ∈ [−43.45, +43.50] ft |
 | Puck at the goal instant, x | median `\|std_x\|` = **89.6 ft** — the goal line sits at 89 ft, which fixes the x offset |
 | Puck at the goal instant, y | median `std_y` = **−0.07 ft**, median `\|std_y\|` = 2.3 ft — the net mouth is 6 ft wide and centred on `y = 0`, which fixes the y offset |
 
@@ -126,6 +126,28 @@ so the transform is reversible.
 
 `dist_to_net_ft` and `angle_to_net_deg` are derived from the attack frame, with
 the net at `(89, 0)` and 0° pointing straight out along the centre line.
+
+**Measured, on 2024-25** (`src/tracking_validation.py`, check 5). The rotation is
+an identity, so it is checked as one: `x_att == x × flip` and `y_att == y × flip`
+hold on all **14,249,145** rows that have an attack frame, with zero deviation.
+`net_x` agrees with `pbp_target_net_x` recomputed from `homeTeamDefendingSide` on
+**100%** of 7,855 goals, and `net_source` is `pbp` for every one of them — the
+puck-sign fallback did not fire once in the season, so nothing in this table is
+exposed to its 1.05% failure rate.
+
+The end-to-end proof that the flip points at the right end is where the puck
+finishes: at the goal instant its `x_att` has a median of **+89.45 ft**, against a
+goal line at 89, and **98.7%** of goals put it in the attacking half.
+
+The other 1.3% (103 goals) are not flipped the wrong way — they are goals whose
+goal INSTANT is late. All 103 took their net from the play-by-play, and they carry
+the §7.2 signature: **97% had no dead frames to trim** and **87% have the goal
+frame pinned at the last frame of the clip**, i.e. the puck was fished out of the
+net and moved back up ice before the recording stopped, so it never came to rest
+and `goal_instant` had nothing to trim. Their median `|x_att|` is 21.7 ft — the
+puck partway up the ice, not at the wrong net. Shot detection still lands on them
+(median 5.7 ft from the play-by-play's location, against 1.9 ft overall), which is
+the point of taking the net from the play-by-play rather than the puck's sign.
 
 ---
 
@@ -444,3 +466,39 @@ detection lead is its signature, so `frames_before_goal` is worth filtering on.
 local-minimum contact and agreement within 20 ft of the play-by-play location.
 The 20 ft threshold is deliberately loose, since the PBP coordinate is itself
 placed by eye; it is a check for gross failure, not precision.
+
+### 10.1 The tracking table
+
+`tracking_validation.py`. The section above grades the shot DETECTION; this
+grades the published `processed/tracking/{season}.parquet`, reading only the
+parquet files — no sprite parsing — so it cannot pass by reproducing the build's
+own mistakes. Two things it can falsify that §10 cannot:
+
+**The second implementation.** `build_tracking` does not call `process_goal`; it
+re-sequences the same helpers in `locate_goal_and_shot_frames`. If those two ever
+picked different frames, every per-frame flag in the table would be anchored to
+the wrong instant, silently. On 2024-25 both `goal_frame_idx` and
+`shot_frame_idx` equal the audit's published indices for **100%** of 7,855 goals,
+and the scorer's `dist_to_puck_ft` equals the audit's `scorer_dist_shotframe` for
+100% of them (max difference 0.005 ft, which is rounding).
+
+**Is the shooter on the right patch of ice?** The same independent test as §10,
+applied to the identified shooter rather than the puck. At release he is holding
+it, so his absolute coordinates should land where the NHL scorer placed the goal:
+
+| At the shot frame, vs the play-by-play's goal location | Median | p90 | Within 10 ft |
+|---|---|---|---|
+| **The identified shooter** | **3.26 ft** | 9.87 | **90.13%** |
+| The puck (the §10 baseline, 2024-25) | 1.94 ft | 9.31 | 90.73% |
+
+The shooter and the puck are two different points a median 2.7 ft apart, and they
+land on the play-by-play's coordinate equally often — 0.6 points between them.
+That is the result: the gap between shooter and puck does not compound the error,
+because both are measured at an instant where the shooter has the puck on his
+stick. Splitting by the confidence grade the audit already assigns, the misses
+are the known ones — `low` (n=300) sits a median 29.0 ft off with 3.7% within
+10 ft, `high` (n=7,555) a median 3.2 ft with 93.6% within 10 ft.
+
+Orientation and the attack frame are checked in the same run; results in
+[§3.1](#31-the-attack-frame) and [SCHEMA](SCHEMA.md#is-it-right). Thirteen checks,
+all passing on 2024-25; the script exits non-zero if any fails.

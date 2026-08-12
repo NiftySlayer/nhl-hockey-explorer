@@ -85,10 +85,12 @@ It reads only `raw/`, so it can run before, after, or without the rest of the
 build. Goals with no sprite are absent; `audit/completeness_{season}.parquet`
 says which and why.
 
-Order of magnitude: the sprites hold ~1.0–1.1M frames per season
-(`frame_count` in the audit tables) at ~13 entities each, so expect on the order
-of 14M rows per season. That is arithmetic from a measured frame count, not a
-measured row count.
+Size, measured on 2024-25: **14,287,503 rows, 448 MB** snappy-compressed, from
+7,895 goals with a parseable sprite and 1,101,720 frames — 12.1 tracked players
+per frame plus the puck. It builds in **4.5 minutes** from an extracted `raw/`,
+and streams to disk in 100k-row groups rather than going through a DataFrame, so
+peak memory stays flat. The other two seasons hold a comparable number of frames
+(`frame_count` in the audit tables), so expect the same order.
 
 **Goal** — constant within a goal.
 
@@ -132,15 +134,16 @@ measured row count.
 
 | Column | Type | Notes |
 |---|---|---|
-| `x`, `y` | float | Absolute standard rink coordinates, x ∈ [−100, 100], y ∈ [−42.5, 42.5]. The same convention as every other table here |
+| `x`, `y` | float | Absolute standard rink coordinates, nominally x ∈ [−100, 100], y ∈ [−42.5, 42.5], the same convention as every other table here. The feed reports up to **1.0 ft past** those bounds for a player against the boards — 0.02% of x and 0.40% of y values in 2024-25, never further out than that. Clamp if your geometry needs it |
 | `x_att`, `y_att` | float | The attack frame: the rink rotated so the **attacked** net — the net of the team that conceded — is always the one at x = +89 |
 | `dist_to_net_ft` | float | Feet to the attacked net, `hypot(89 − x_att, y_att)` |
 | `angle_to_net_deg` | float | `degrees(atan2(y_att, 89 − x_att))`. 0° is straight out from the net along the centre line, growing toward +`y_att` |
 | `dist_to_puck_ft` | float | Feet to the puck **in that same frame**. Null on puck rows and wherever the puck has no coordinates |
 
-The attack-frame columns are null when the net could not be resolved at all.
-`dist_to_puck_ft` is *not* window-averaged, unlike `d_shotframe` in `events/`:
-this is a continuous series, so smoothing is the consumer's decision.
+The attack-frame columns are null when the net could not be resolved at all —
+23 goals of 7,895 in 2024-25 (38,358 rows, 0.27%). `dist_to_puck_ft` is *not*
+window-averaged, unlike `d_shotframe` in `events/`: this is a continuous series,
+so smoothing is the consumer's decision.
 
 ⚠️ **The table contains post-goal frames, and they are not clean.** The clip
 keeps recording for seconds after the puck goes in, and on overtime and
@@ -155,6 +158,45 @@ treating a frame's entity set as a roster.
 `pd.read_parquet` converts those to `float64` (so a player id reads as
 `8478402.0` and will not join against an int column); pass
 `dtype_backend="pyarrow"`, or filter to `entity_type == "player"` first.
+
+Do not read the season to get one instant out of it. A parquet predicate is
+pushed down to the row groups and takes under a second:
+
+```python
+sf = pd.read_parquet("processed/tracking/20242025.parquet",
+                     filters=[("is_shot_frame", "==", True)],
+                     dtype_backend="pyarrow")     # 101,294 rows of 14.3M
+```
+
+### Is it right?
+
+`src/tracking_validation.py` grades the published parquet — not the code that
+wrote it — against the play-by-play and against the shot-frame tables it has to
+agree with. All 13 checks pass on 2024-25:
+
+```bash
+python src/tracking_validation.py --root . --seasons 20242025
+```
+
+| Check | Result on 2024-25 |
+|---|---|
+| `goal_frame_idx` / `shot_frame_idx` == the audit's own indices | **100%** of 7,855 goals. The tracking build re-sequences the detector rather than calling `process_goal`, and this is what holds the two together |
+| Scorer's `dist_to_puck_ft` == the audit's `scorer_dist_shotframe` | **100%**, max difference 0.005 ft (rounding) |
+| **The shooter is where the play-by-play says the goal was** | median **3.26 ft**, **90.1% within 10 ft** — against 90.7% for the puck at the same frame ([METHODS §10](METHODS.md)) |
+| Shooter-to-puck distance at the shot frame | median **2.70 ft** (IQR 2.12–3.41), 92.6% within 5 ft, 98.5% within 10 ft |
+| One shared orientation with the play-by-play | 0.56% of goals fit the negated frame better |
+| `x_att == x × flip` and `y_att == y × flip` | 0 mismatches in 14,249,145 rows — the flip is a rotation, not a mirror |
+| `net_x` == the net implied by `homeTeamDefendingSide` | **100%** of 7,855 goals; `net_source` is `pbp` for every one |
+| The puck ends up in the attacked net | `x_att` at the goal frame: median **+89.45 ft**, 98.7% in the attacking half |
+| One shot frame, one scorer row, one puck row per goal | 100% |
+
+The shooter band matching the puck band to within 0.6 points is the load-bearing
+result: the shooter and the puck are different points a median 2.7 ft apart, and
+both land on the play-by-play's coordinate equally often, which is what "the
+shooter is at the right place on the ice" means for a table nothing else can
+check. Where it misses it misses for a known reason — goals graded
+`shot_confidence == "low"` (n=300) sit a median 29 ft off, against 3.2 ft for the
+7,555 graded `high`.
 
 ---
 

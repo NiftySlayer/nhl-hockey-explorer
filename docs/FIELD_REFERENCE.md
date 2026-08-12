@@ -64,7 +64,7 @@ top level is a list.
 | `onIce` | dict | Keyed by entity id (string). **Key `"1"` is the puck** | ✅ |
 | `onIce[k].id` | int | Entity id. Always equals `int(k)` — the dict key duplicated | ✅ |
 | `onIce[k].playerId` | int | Universal NHL player id. **Empty string `""` for the puck** | ✅ |
-| `onIce[k].x`, `.y` | float | Position in **inches from the rink corner at standard (−100, +42.5)**. Ranges 0–2400 and 0–1020 in. See [METHODS §3](METHODS.md) for the transform and the y-axis inversion | ✅ |
+| `onIce[k].x`, `.y` | float | Position in **inches from the rink corner at standard (−100, +42.5)**. Nominally 0–2400 and 0–1020 in, but values run up to **12 in past either end** — a player against the boards. See [METHODS §3](METHODS.md) for the transform and the y-axis inversion | ✅ |
 | `onIce[k].sweaterNumber` | int | Jersey number; `""` for the puck | ✅ |
 | `onIce[k].teamId`, `.teamAbbrev` | int, str | Team; `""` for the puck | ✅ |
 

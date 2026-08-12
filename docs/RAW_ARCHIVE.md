@@ -19,8 +19,7 @@ pipeline independently checkable: anyone can pull the archive, re-run
 
 ## What's in it
 
-Three zip files, one per season, each laid out so that extracting it at a
-repository root reproduces `raw/` directly:
+Three zip files, one per season:
 
 ```
 nhl-tracking-raw-20232024.zip
@@ -37,6 +36,24 @@ shifts/{season}/{game}.json                 shift charts (JSON feed)
 shifts_html/{season}/{game}_{TV|TH}.HTM     HTML TOI fallback, where the JSON feed came back empty
 edge/{season}/{skater|goalie}/{player}.json NHL Edge season aggregates
 ```
+
+**Extract each zip INTO `raw/`, not at the repository root.** The zip's own top
+level is `sprites/ pbp/ shifts/ shifts_html/ edge/` — the `raw/` prefix is not
+inside it — so unzipping at the root scatters those five directories beside
+`src/` and every path in `pipeline_common.Layout` misses:
+
+```bash
+unzip nhl-tracking-raw-20242025.zip -d raw/
+```
+
+```python
+# same thing, portable
+import zipfile
+zipfile.ZipFile("nhl-tracking-raw-20242025.zip").extractall("raw")
+```
+
+The three seasons share the layout, so extracting all three into the same `raw/`
+merges them, which is what the pipeline expects.
 
 | Season | Files | Raw size | Zip size |
 |---|---|---|---|
@@ -102,9 +119,10 @@ import hashlib, json
 from pathlib import Path
 
 manifest = [json.loads(l) for l in Path("manifest-20242025.jsonl").open()]
+root = Path("raw")                 # where the zip was extracted to
 bad = []
 for row in manifest:
-    p = Path(row["path"])          # after extracting the zip at a repo root
+    p = root / row["path"]         # manifest paths start at sprites/, pbp/, ...
     if not p.exists():
         bad.append((row["path"], "missing"))
         continue
@@ -113,6 +131,10 @@ for row in manifest:
 
 print(f"{len(manifest) - len(bad)}/{len(manifest)} files verified")
 ```
+
+The 2024-25 zip was re-downloaded, extracted into `raw/` and checked this way
+before the tracking-table build documented in [SCHEMA](SCHEMA.md): 11,829/11,829
+files present, and a 200-file random sample matched its manifest sha256 exactly.
 
 ---
 

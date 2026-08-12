@@ -101,9 +101,13 @@ Plus one opt-in table, not built unless asked for:
 
 | Table | Grain | Contents |
 |---|---|---|
-| `processed/tracking/{season}.parquet` | goal × frame × entity | The whole clip rather than one instant: every 0.1 s frame of every goal, one row per player and one for the puck, in absolute rink feet **and** in attack-oriented coordinates with the conceding team's net always at x = +89 |
+| `processed/tracking/{season}.parquet` | goal × frame × entity | The whole clip rather than one instant: every 0.1 s frame of every goal, one row per player and one for the puck, in absolute rink feet **and** in attack-oriented coordinates with the conceding team's net always at x = +89. 14.3M rows / 448 MB for 2024-25 |
 
-Column-level detail in [docs/SCHEMA.md](docs/SCHEMA.md).
+Column-level detail in [docs/SCHEMA.md](docs/SCHEMA.md). The tracking table is
+graded the same independent way the shot dataset is: at the frame it marks as the
+release, the identified **shooter's own coordinates** sit a median 3.26 ft from
+where the play-by-play placed the goal, **90.1% within 10 ft** — matching the puck
+at that frame to within 0.6 points ([METHODS §10.1](docs/METHODS.md)).
 
 Coverage of regulation and overtime goals, by season: the sprite is present and
 parses for **99.25% / 99.92% / 99.93%**, and a shot frame is detected — the
@@ -152,9 +156,16 @@ it can be built at any point once the sprites are on disk:
 python src/run_pipeline.py --root . --steps tracking --seasons 20242025
 ```
 
-It is excluded from `--steps all` deliberately: at roughly 14M rows per season
-it is two orders of magnitude larger than anything else here, and nothing else
-in the pipeline reads it.
+It is excluded from `--steps all` deliberately: at 14.3M rows and 448 MB for
+2024-25 it is two orders of magnitude larger than anything else here, and nothing
+else in the pipeline reads it. It takes about 4.5 minutes per season. To grade
+the result — the shooter's own coordinates at every shot frame against the
+play-by-play's record of where the goal was scored from, plus the attack-frame
+geometry:
+
+```bash
+python src/tracking_validation.py --root . --seasons 20242025
+```
 
 Individual steps (`scrape`, `shifts-html`, `edge`, `build`, `stints`,
 `tracking`) can be run alone with `--steps`, and each module also has its own
@@ -182,6 +193,7 @@ Python puts the running script's directory on `sys.path`.
 | `stints.py` | Sweeps shifts into stint intervals and on-ice rosters |
 | `run_pipeline.py` | One command for the whole thing |
 | `shotframe_validation.py` | Grades the inferred shot against the play-by-play's goal coordinates |
+| `tracking_validation.py` | Grades the published tracking table: frame indices against the audit, the shooter's absolute position against the play-by-play, and the attack-frame geometry |
 
 ---
 
