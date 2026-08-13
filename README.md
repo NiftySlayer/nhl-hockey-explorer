@@ -234,6 +234,23 @@ frame indices against the audit, and the attack-frame geometry:
 python src/tracking_validation.py --root . --seasons 20242025
 ```
 
+Both print their results. To draw them instead:
+
+```bash
+pip install matplotlib
+python src/figures.py --root . --all
+```
+
+![Shot-frame detection graded against the play-by-play](figures/fig1_shot_validation.png)
+
+That one needs no archive and no build — it draws from the `audit/` tables
+committed here, so it renders on a bare clone. The other three
+(`tracking_validation`, `goal_map`, `puck_motion`) need
+`--steps tracking` to have run first, and are skipped with a message until it
+has. `goal_map` draws a single goal's whole clip on a rink in attack
+coordinates, which is the quickest way to see whether the coordinate work is
+right.
+
 ### Notes on the steps
 
 `tracking` is deliberately excluded from `--steps all`: at 14.3M rows and 448 MB
@@ -270,6 +287,7 @@ Python puts the running script's directory on `sys.path`.
 | `run_pipeline.py` | One command for the whole thing |
 | `shotframe_validation.py` | Grades the inferred shot against the play-by-play's goal coordinates |
 | `tracking_validation.py` | Grades the published tracking table: frame indices against the audit, the shooter's absolute position against the play-by-play, and the attack-frame geometry |
+| `figures.py` | Optional. Draws the validation results, and one goal's clip on a rink. Needs `matplotlib`; nothing else imports it |
 
 ---
 

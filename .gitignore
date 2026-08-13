@@ -27,6 +27,13 @@ __pycache__/
 venv/
 env/
 
+# Rendered figures — all reproducible with src/figures.py, so they are output,
+# not content. The shot-validation figure is the exception and IS committed: it
+# draws from the audit tables alone, which ship in this repo, so it renders on a
+# bare clone and is the one claim a reader can see without downloading anything.
+figures/*
+!figures/fig1_shot_validation.png
+
 # Editors / OS
 .vscode/
 .idea/

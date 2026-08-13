@@ -11,3 +11,7 @@ lxml==6.0.2
 numpy==2.3.5
 pandas==2.3.3
 pyarrow==22.0.0
+
+# Figures only (src/figures.py). Nothing in the pipeline imports it, so the
+# build and both validators run without this line installed.
+matplotlib==3.11.1
