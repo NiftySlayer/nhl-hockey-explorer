@@ -172,8 +172,9 @@ def fig_shot_validation(lay: pc.Layout, seasons):
     ax1.set_ylim(0, 1.02)
     ax1.set_xlabel("Distance from the inferred shot location to the PBP's (ft)")
     ax1.set_ylabel("Cumulative share of goals")
+    seasons_txt = f"{len(parts)} season" + ("" if len(parts) == 1 else "s")
     _sub(ax1, "The inferred shot agrees with the NHL's own record",
-         f"n={len(df):,} goals, {len(seasons)} season(s). "
+         f"n={len(df):,} goals, {seasons_txt} pooled. "
          f"{(e <= 10).mean():.1%} land within 10 ft, {(e <= 20).mean():.1%} "
          "within 20 ft —\nan independent check, since neither location is "
          "used to find the other.")

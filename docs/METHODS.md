@@ -486,10 +486,15 @@ and the scorer's `dist_to_puck_ft` equals the audit's `scorer_dist_shotframe` fo
 applied to the identified shooter rather than the puck. At release he is holding
 it, so his absolute coordinates should land where the NHL scorer placed the goal:
 
-| At the shot frame, vs the play-by-play's goal location | Median | p90 | Within 10 ft |
+| At the shot frame, vs the play-by-play's goal location (2024-25) | Median | p90 | Within 10 ft |
 |---|---|---|---|
 | **The identified shooter** | **3.26 ft** | 9.87 | **90.13%** |
-| The puck (the §10 baseline, 2024-25) | 1.94 ft | 9.31 | 90.73% |
+| The puck (the §10 baseline) | 1.94 ft | 9.31 | 90.73% |
+
+Pooled over all three seasons the same comparison gives 3.32 ft and 89.5% for
+the shooter against 2.04 ft and 90.1% for the puck — the same 0.6-point gap.
+`figures/fig2_tracking_validation.png` draws the pooled version, so its numbers
+sit just beside these rather than on top of them.
 
 The shooter and the puck are two different points a median 2.7 ft apart, and they
 land on the play-by-play's coordinate equally often — 0.6 points between them.

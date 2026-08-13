@@ -106,8 +106,15 @@ Plus one opt-in table, not built unless asked for:
 Column-level detail in [docs/SCHEMA.md](docs/SCHEMA.md). The tracking table is
 graded the same independent way the shot dataset is: at the frame it marks as the
 release, the identified **shooter's own coordinates** sit a median 3.26 ft from
-where the play-by-play placed the goal, **90.1% within 10 ft** — matching the puck
-at that frame to within 0.6 points ([METHODS §10.1](docs/METHODS.md)).
+where the play-by-play placed the goal on 2024-25, **90.1% within 10 ft** —
+matching the puck at that frame to within 0.6 points
+([METHODS §10.1](docs/METHODS.md)).
+
+![One goal's clip in attack coordinates](figures/fig3_goal_map.png)
+
+Every 0.1 s of one goal, drawn from the table itself. The attacked net is on the
+right for every goal in the file, whichever end it was scored at and whichever
+team scored it.
 
 Coverage of regulation and overtime goals, by season: the sprite is present and
 parses for **99.25% / 99.92% / 99.93%**, and a shot frame is detected — the

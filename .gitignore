@@ -27,12 +27,15 @@ __pycache__/
 venv/
 env/
 
-# Rendered figures — all reproducible with src/figures.py, so they are output,
-# not content. The shot-validation figure is the exception and IS committed: it
-# draws from the audit tables alone, which ship in this repo, so it renders on a
-# bare clone and is the one claim a reader can see without downloading anything.
+# Rendered figures. The four PNGs are committed — they are what the README and
+# the docs point at, and a reader should not have to build 14M rows to see the
+# result. Everything else here is regenerable output: the SVG companions, and
+# any figure rendered to a different --out directory.
 figures/*
 !figures/fig1_shot_validation.png
+!figures/fig2_tracking_validation.png
+!figures/fig3_goal_map.png
+!figures/fig4_puck_motion.png
 
 # Editors / OS
 .vscode/
