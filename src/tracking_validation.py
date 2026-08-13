@@ -50,7 +50,7 @@ import pyarrow.parquet as pq
 import build_processed as bp
 import pipeline_common as pc
 
-SEASONS = ["20232024", "20242025", "20252026"]
+SEASONS = pc.SEASONS
 NET_X = bp.NET_X
 
 # Agreement thresholds. The first two are arithmetic identities held to a

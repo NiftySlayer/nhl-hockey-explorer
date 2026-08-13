@@ -44,7 +44,7 @@ import pandas as pd
 import pipeline_common as pc
 import tracking_validation as tv
 
-SEASONS = ["20232024", "20242025", "20252026"]
+SEASONS = pc.SEASONS
 OUT = Path("figures")
 
 # --- palette ---------------------------------------------------------------
@@ -56,7 +56,6 @@ GRID = "#e1e0d9"
 AXIS = "#c3c2b7"
 BLUE = "#2a78d6"
 RED = "#e34948"
-DEEMPH = "#c9c8c2"
 SEQ_LO, SEQ_MID, SEQ_HI = "#86b6ef", "#2a78d6", "#104281"
 
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
@@ -131,14 +130,6 @@ def _fade(ax, x, y, color, lw, zorder, lo=0.08, hi=0.9):
     for i in range(n - 1):
         ax.plot(x[i:i + 2], y[i:i + 2], color=color, lw=lw, alpha=alphas[i],
                 zorder=zorder, solid_capstyle="round")
-
-
-def _exists(paths, what):
-    missing = [p for p in paths if not Path(p).exists()]
-    if missing:
-        print(f"  skipped - {what} needs {missing[0]}")
-        return False
-    return True
 
 
 # ---------------------------------------------------------------------------
@@ -309,7 +300,7 @@ def fig_tracking_validation(lay: pc.Layout, seasons):
 # 3. one goal, drawn
 # ---------------------------------------------------------------------------
 
-def _rink(ax, half=False):
+def _rink(ax):
     """Standard NHL rink in the pipeline's own coordinates: x +/-100, y +/-42.5."""
     LINE = "#b8b7ad"
     ax.add_patch(plt.Rectangle((-100, -42.5), 200, 85, fill=False,
@@ -328,7 +319,7 @@ def _rink(ax, half=False):
                                     edgecolor=LINE, lw=1, zorder=1))
     ax.add_patch(plt.Circle((0, 0), 15, fill=False, edgecolor=LINE, lw=1,
                             zorder=1))
-    ax.set_xlim(0 if half else -101, 101)
+    ax.set_xlim(-101, 101)
     ax.set_ylim(-43.5, 43.5)
     ax.set_aspect("equal")
     ax.grid(False)

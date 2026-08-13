@@ -58,6 +58,11 @@ EDGE_GOALIE_URL = (
 # overnight run still leaves a usable archive behind.
 ARCHIVE_SEASONS = ["20242025", "20232024", "20252026"]
 
+# The same three in chronological order, which is what a report or a figure
+# wants. The validators and figures each used to carry their own copy of this
+# list; one definition means adding a season touches one line.
+SEASONS = sorted(ARCHIVE_SEASONS)
+
 DEFAULT_DELAY = 0.7  # seconds between requests (docs/METHODS.md §1: 0.5-1 s)
 
 # Shot-attempt event types — the standard Corsi set. Goals included; a goal is
@@ -69,15 +74,6 @@ SHOT_EVENT_TYPES = ("goal", "shot-on-goal", "missed-shot", "blocked-shot")
 # agrees -- but it is used for ordering only and dt is hardcoded, so a feed that
 # ever changed units could not silently rescale every distance in the archive.
 SECONDS_PER_FRAME = 0.1
-
-# THE MEASUREMENT POINT FOR PLAYER-TO-PUCK DISTANCE.
-# 'd_shotframe' = scorer-anchored shot release. This is the one to use.
-# 'd_goalframe' = puck at the net. Emitted alongside it, but only as a
-# documented variant: it is outcome-conditioned, since the puck being in the
-# net mechanically makes the conceding side's defencemen the nearest players
-# (docs/METHODS.md §7.1).
-DISTANCE_COL = "d_shotframe"
-
 
 PERIOD_SECONDS = 1200  # 20:00 regulation period, for absolute game time
 

@@ -149,7 +149,7 @@ python -c "import zipfile; zipfile.ZipFile(r'C:\Users\you\Downloads\nhl-tracking
 # 2. Check it landed. Should print 1312 play-by-play files, not 0.
 python -c "import pathlib; print(len(list(pathlib.Path('raw/pbp/20242025').glob('*.json'))))"
 
-# 3. The continuous tracking table. Offline, ~4.5 min, writes ~450 MB.
+# 3. The continuous tracking table. Offline, writes ~450 MB.
 python src/run_pipeline.py --root . --steps tracking --seasons 20242025
 
 # 4. Optional — every other table: shots, shifts, events, the completeness audit.
@@ -206,8 +206,9 @@ Only necessary for a season the archive does not cover.
 python src/run_pipeline.py --root . --seasons 20242025
 ```
 
-That scrapes one season and builds every table — roughly two hours, almost all
-of it waiting on the rate limit. For the full archive:
+That scrapes one season and builds every table. It is a long run, almost all
+of it spent waiting on the rate limit rather than working. For the full
+archive:
 
 ```bash
 python src/run_pipeline.py --root . --seasons 20242025 20232024 20252026

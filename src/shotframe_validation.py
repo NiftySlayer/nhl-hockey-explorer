@@ -58,7 +58,7 @@ import pandas as pd
 import build_processed as bp
 import pipeline_common as pc
 
-SEASONS = ["20232024", "20242025", "20252026"]
+SEASONS = pc.SEASONS
 NET_X = bp.NET_X
 
 

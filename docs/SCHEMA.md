@@ -87,9 +87,9 @@ says which and why.
 
 Size, measured on 2024-25: **14,287,503 rows, 448 MB** snappy-compressed, from
 7,895 goals with a parseable sprite and 1,101,720 frames — 12.1 tracked players
-per frame plus the puck. It builds in **4.5 minutes** from an extracted `raw/`,
-and streams to disk in 100k-row groups rather than going through a DataFrame, so
-peak memory stays flat. The other two seasons hold a comparable number of frames
+per frame plus the puck. It builds from an extracted `raw/` and streams to disk
+in 100k-row groups rather than going through a DataFrame, so peak memory stays
+flat regardless of how many seasons you throw at it. The other two seasons hold a comparable number of frames
 (`frame_count` in the audit tables), so expect the same order.
 
 **Goal** — constant within a goal.
