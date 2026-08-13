@@ -124,6 +124,68 @@ pip install -r requirements.txt
 
 Run from the repository root; `--root` is where the data archive lives.
 
+### Start from the published archive — no scraping
+
+The scrape exists so that the archive could be assembled once. You do not need
+to repeat it. Download a season from
+[Zenodo](https://doi.org/10.5281/zenodo.21608977) and go straight to the tables:
+
+```bash
+# 1. Extract INTO raw/ — the zip's own top level is sprites/ pbp/ shifts/,
+#    so unzipping at the repository root scatters those beside src/ and every
+#    path in the pipeline misses, silently.
+unzip nhl-tracking-raw-20242025.zip -d raw/
+
+# 2. The continuous tracking table. Offline, ~4.5 min.
+python src/run_pipeline.py --root . --steps tracking --seasons 20242025
+
+# 3. Optional — every other table: shots, shifts, events, the completeness audit.
+python src/run_pipeline.py --root . --steps build  --seasons 20242025
+python src/run_pipeline.py --root . --steps stints --seasons 20242025
+```
+
+Step 2 leaves `processed/tracking/20242025.parquet` on disk: 14.3M rows, one per
+player-or-puck per 0.1 s frame per goal, in absolute rink feet and in
+attack-oriented coordinates.
+
+Rows are written in game order, so a parquet predicate is pushed down to the row
+groups and neither read below loads the season:
+
+```python
+import pandas as pd
+
+PATH = "processed/tracking/20242025.parquet"
+
+# Pick a goal. Every goal's shot frame, in about a second.
+sf = pd.read_parquet(PATH, filters=[("is_shot_frame", "==", True)],
+                     dtype_backend="pyarrow")     # 101,294 rows of 14.3M
+gid, eid = int(sf.game_id.iloc[0]), int(sf.event_id.iloc[0])
+
+# That goal's whole clip. Every row carries game_id, event_id, shot_type and the
+# rest of the play-by-play metadata, so a goal selects with no joins.
+clip = pd.read_parquet(PATH, dtype_backend="pyarrow",
+                       filters=[("game_id", "==", gid),
+                                ("event_id", "==", eid)])
+
+# The puck's trajectory: net always on the right, 0 s at the goal.
+puck = clip[clip.entity_type == "puck"].sort_values("frame_idx")
+puck[["seconds_to_goal", "x_att", "y_att", "dist_to_net_ft"]]
+```
+
+`dtype_backend="pyarrow"` is not optional if you intend to join: plain
+`pd.read_parquet` turns the nullable integer columns into floats, so a player id
+reads as `8478402.0` and matches nothing. All 45 columns are in
+[docs/SCHEMA.md](docs/SCHEMA.md).
+
+⚠️ The clip keeps recording after the puck goes in, and on overtime and
+game-winning goals the scoring team empties its bench into the tracker's view.
+Filter on `seconds_to_goal <= 0` before treating a frame's entity set as a
+roster — see [docs/SCHEMA.md](docs/SCHEMA.md).
+
+### Scraping it yourself
+
+Only necessary for a season the archive does not cover.
+
 ```bash
 python src/run_pipeline.py --root . --seasons 20242025
 ```
@@ -143,38 +205,40 @@ changed parse rule means re-deriving rather than re-fetching:
 python src/run_pipeline.py --root . --steps build --seasons 20242025
 ```
 
-To check shot detection against the play-by-play's coordinates:
+### Checking it yourself
+
+Both validators read what the pipeline wrote and grade it against the
+play-by-play, which was not used to build it. Shot detection:
 
 ```bash
 python src/shotframe_validation.py --root . --seasons 20242025 --sample 3000
 ```
 
-The continuous tracking table is opt-in and offline, and reads only `raw/`, so
-it can be built at any point once the sprites are on disk:
-
-```bash
-python src/run_pipeline.py --root . --steps tracking --seasons 20242025
-```
-
-It is excluded from `--steps all` deliberately: at 14.3M rows and 448 MB for
-2024-25 it is two orders of magnitude larger than anything else here, and nothing
-else in the pipeline reads it. It takes about 4.5 minutes per season. To grade
-the result — the shooter's own coordinates at every shot frame against the
-play-by-play's record of where the goal was scored from, plus the attack-frame
-geometry:
+And the tracking table — the identified shooter's own coordinates at every shot
+frame against the play-by-play's record of where the goal was scored from, the
+frame indices against the audit, and the attack-frame geometry:
 
 ```bash
 python src/tracking_validation.py --root . --seasons 20242025
 ```
 
+### Notes on the steps
+
+`tracking` is deliberately excluded from `--steps all`: at 14.3M rows and 448 MB
+for 2024-25 it is two orders of magnitude larger than anything else here, and
+nothing else in the pipeline reads it. It also depends on nothing but `raw/`, so
+it can run before, after, or entirely without the rest of the build.
+
 Individual steps (`scrape`, `shifts-html`, `edge`, `build`, `stints`,
 `tracking`) can be run alone with `--steps`, and each module also has its own
 CLI.
 
-⚠️ **If you run steps by hand, do not skip `shifts-html`.** The JSON shift feed
+⚠️ **If you scrape by hand, do not skip `shifts-html`.** The JSON shift feed
 answers HTTP 200 with an empty body for whole blocks of games, and the build
 falls back to HTML reports that are only on disk if that step ran. Skipping it
-drops those games' on-ice rosters with no error. `--steps all` includes it.
+drops those games' on-ice rosters with no error. `--steps all` includes it, and
+the published archive already ships the HTML reports — so this applies only if
+you are scraping a season yourself.
 
 ---
 
@@ -205,6 +269,14 @@ seasons — is published on Zenodo:
 **[10.5281/zenodo.21608977](https://doi.org/10.5281/zenodo.21608977)**. These
 are undocumented endpoints that could change or disappear, so the scrape is
 mirrored rather than only documented.
+
+What is published is deliberately the **untransformed** feed, not this
+pipeline's output. Nobody should have to spend two rate-limited hours against
+the NHL's endpoints to get the bytes, but nobody should have to accept this
+repository's interpretation of them either. Use `--steps tracking` to get the
+parquet, or parse the JSON yourself and disagree — the point of mirroring the
+raw archive is that both roads stay open, and that any claim made here can be
+checked against the source rather than against a table someone else derived.
 
 Contents, per-file sha256 manifests, and the coverage checks run before
 publishing are in [docs/RAW_ARCHIVE.md](docs/RAW_ARCHIVE.md). The processed
