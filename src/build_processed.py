@@ -1299,6 +1299,7 @@ def build_tracking(lay: pc.Layout, season, position_map):
     Goals whose sprite is missing or unparseable are skipped silently: they are
     already accounted for, with a reason, in audit/completeness_{season}.parquet.
     """
+    pc.require_raw(lay, season, sprites=True)
     out = lay.tracking(season)
     writer = _BatchedParquetWriter(out, TRACKING_SCHEMA)
     n_goals = n_sprites = n_frames = 0
@@ -1365,6 +1366,7 @@ def build_tracking(lay: pc.Layout, season, position_map):
 # ---------------------------------------------------------------------------
 
 def build_season(lay: pc.Layout, season, position_map, tracking=False):
+    pc.require_raw(lay, season)
     print(f"\n=== BUILD season {season} ===", flush=True)
     build_games(lay, season)
     build_faceoffs(lay, season)

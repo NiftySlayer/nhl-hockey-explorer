@@ -211,6 +211,15 @@ def _flag_post_special_teams(rows):
 
 
 def build_stints(lay: pc.Layout, season):
+    # Unlike the rest, this step reads processed/ rather than raw/, so it is the
+    # one that breaks when the steps are run out of order.
+    if not lay.shifts_table(season).exists():
+        raise SystemExit(
+            f"\nNo shift table for {season}: {lay.shifts_table(season)}\n"
+            f"Stints are swept from the built tables, not from raw/, so run the "
+            f"build first:\n"
+            f"    python src/run_pipeline.py --root {lay.root} "
+            f"--steps build --seasons {season}\n")
     print(f"\n=== STINTS {season} ===", flush=True)
     shifts = pd.read_parquet(lay.shifts_table(season))
     games = pd.read_parquet(lay.games(season))

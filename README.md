@@ -118,6 +118,8 @@ number that matters for a distance measurement — for **98.71% / 99.42% /
 
 ## Running it
 
+Python 3.11 or newer.
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -127,24 +129,34 @@ Run from the repository root; `--root` is where the data archive lives.
 ### Start from the published archive — no scraping
 
 The scrape exists so that the archive could be assembled once. You do not need
-to repeat it. Download a season from
-[Zenodo](https://doi.org/10.5281/zenodo.21608977) and go straight to the tables:
+to repeat it. Download one season from
+[Zenodo](https://doi.org/10.5281/zenodo.21608977) — the zips are 0.2–0.3 GB each
+and extract to about 2.4 GB — and go straight to the tables:
 
 ```bash
-# 1. Extract INTO raw/ — the zip's own top level is sprites/ pbp/ shifts/,
-#    so unzipping at the repository root scatters those beside src/ and every
-#    path in the pipeline misses, silently.
+# 1. Extract INTO raw/. The zip's own top level is sprites/ pbp/ shifts/, with
+#    no raw/ prefix, so extracting at the repository root puts every file one
+#    directory out of reach. Do not double-click the zip; give it a target.
 unzip nhl-tracking-raw-20242025.zip -d raw/
 
-# 2. The continuous tracking table. Offline, ~4.5 min.
+#    No unzip on your machine (Windows, mostly)? Same thing:
+python -c "import zipfile; zipfile.ZipFile('nhl-tracking-raw-20242025.zip').extractall('raw')"
+
+# 2. Check it landed. Should print 1312 play-by-play files, not 0.
+python -c "import pathlib; print(len(list(pathlib.Path('raw/pbp/20242025').glob('*.json'))))"
+
+# 3. The continuous tracking table. Offline, ~4.5 min, writes ~450 MB.
 python src/run_pipeline.py --root . --steps tracking --seasons 20242025
 
-# 3. Optional — every other table: shots, shifts, events, the completeness audit.
+# 4. Optional — every other table: shots, shifts, events, the completeness audit.
 python src/run_pipeline.py --root . --steps build  --seasons 20242025
 python src/run_pipeline.py --root . --steps stints --seasons 20242025
 ```
 
-Step 2 leaves `processed/tracking/20242025.parquet` on disk: 14.3M rows, one per
+If `raw/` is missing or landed in the wrong place, the build stops and tells you
+so rather than producing empty tables.
+
+Step 3 leaves `processed/tracking/20242025.parquet` on disk: 14.3M rows, one per
 player-or-puck per 0.1 s frame per goal, in absolute rink feet and in
 attack-oriented coordinates.
 

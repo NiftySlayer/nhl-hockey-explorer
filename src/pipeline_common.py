@@ -297,6 +297,47 @@ class Layout:
         return self.root / "raw" / "sprites" / season / str(game)
 
 
+def require_raw(lay: "Layout", season, sprites=False):
+    """
+    Stop before an offline build that has nothing to read.
+
+    The archive zips carry `sprites/ pbp/ shifts/` at their own top level, with
+    no `raw/` prefix, so extracting one at the repository root leaves every path
+    here one directory out of reach. Without this check the build reads that as
+    a season in which nothing happened and cheerfully writes a full set of empty
+    tables — over the audit parquets this repository ships, destroying the one
+    thing a reader can check the documented numbers against. It then prints ALL
+    DONE and exits 0, so nothing about the result says what went wrong.
+
+    Raises SystemExit with the fix. Called by the offline builders, not by the
+    scrape, which is what creates raw/ in the first place.
+    """
+    pbp_dir = lay.raw_pbp_dir(season)
+    missing = "play-by-play" if not any(pbp_dir.glob("*.json")) else None
+
+    if missing is None and sprites:
+        sprite_dir = lay.root / "raw" / "sprites" / season
+        if not sprite_dir.is_dir() or not any(sprite_dir.iterdir()):
+            missing, pbp_dir = "sprites", sprite_dir
+
+    if missing is None:
+        return
+
+    raise SystemExit(
+        f"\nNothing to build: no {missing} for season {season}.\n"
+        f"  looked in: {pbp_dir}\n\n"
+        f"If you have downloaded the archive, extract it INTO raw/ — the zip's\n"
+        f"top level is sprites/ pbp/ shifts/, with no raw/ prefix, so unzipping\n"
+        f"at the repository root puts every file just out of reach:\n"
+        f"    unzip nhl-tracking-raw-{season}.zip -d raw/\n"
+        f"    python -c \"import zipfile; zipfile.ZipFile("
+        f"'nhl-tracking-raw-{season}.zip').extractall('raw')\"\n\n"
+        f"If you have not, scrape it first (~2 h, rate-limited):\n"
+        f"    python src/run_pipeline.py --root {lay.root} "
+        f"--steps all --seasons {season}\n"
+    )
+
+
 def write_raw(path: Path, content: bytes):
     """
     Write raw bytes verbatim, creating parent dirs. Immutable-raw contract:
