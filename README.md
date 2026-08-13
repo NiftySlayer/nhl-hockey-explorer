@@ -13,8 +13,6 @@ and writes a per-goal audit row recording how much to trust it.
 Three seasons are available: **2023-24, 2024-25 and 2025-26**, 1,312
 regular-season games each, ~24,000 goal events, 7.2 GB of raw JSON.
 
-Author: Elliott Kervin.
-
 ---
 
 ## Feed behaviour that affects the measurement
