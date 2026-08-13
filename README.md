@@ -133,14 +133,18 @@ to repeat it. Download one season from
 [Zenodo](https://doi.org/10.5281/zenodo.21608977) — the zips are 0.2–0.3 GB each
 and extract to about 2.4 GB — and go straight to the tables:
 
+Both commands below assume the zip is in the directory you are running from —
+if it went to your Downloads folder, either move it here first or point the
+command at wherever it landed.
+
 ```bash
 # 1. Extract INTO raw/. The zip's own top level is sprites/ pbp/ shifts/, with
 #    no raw/ prefix, so extracting at the repository root puts every file one
 #    directory out of reach. Do not double-click the zip; give it a target.
-unzip nhl-tracking-raw-20242025.zip -d raw/
+unzip ~/Downloads/nhl-tracking-raw-20242025.zip -d raw/
 
 #    No unzip on your machine (Windows, mostly)? Same thing:
-python -c "import zipfile; zipfile.ZipFile('nhl-tracking-raw-20242025.zip').extractall('raw')"
+python -c "import zipfile; zipfile.ZipFile(r'C:\Users\you\Downloads\nhl-tracking-raw-20242025.zip').extractall('raw')"
 
 # 2. Check it landed. Should print 1312 play-by-play files, not 0.
 python -c "import pathlib; print(len(list(pathlib.Path('raw/pbp/20242025').glob('*.json'))))"

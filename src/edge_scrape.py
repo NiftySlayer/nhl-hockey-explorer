@@ -37,7 +37,7 @@ def scrape_edge_season(lay: pc.Layout, season, game_type, delay, force):
     log_path = lay.edge_log(season)
     players = pc.season_players(lay, season)
     if not players:
-        print(f"\n=== EDGE season {season}: no raw PBP found — run scrape first. ===",
+        print(f"\n=== EDGE season {season}: no raw PBP found - run scrape first. ===",
               flush=True)
         return {"skaters": 0, "goalies": 0, "no_edge_404": 0, "errors": 0}
 

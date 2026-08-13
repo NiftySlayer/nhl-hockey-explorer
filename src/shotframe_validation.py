@@ -148,7 +148,7 @@ def report(df):
 
     # ---- 1. coordinate frame -------------------------------------------
     print("\n" + "-" * 78)
-    print("CHECK 1 — do the sprite and the PBP share a coordinate frame?")
+    print("CHECK 1 - do the sprite and the PBP share a coordinate frame?")
     print("-" * 78)
     same = np.hypot(d.puck_x - d.pbp_x, d.puck_y - d.pbp_y)
     flip = np.hypot(-d.puck_x - d.pbp_x, -d.puck_y - d.pbp_y)
@@ -167,7 +167,7 @@ def report(df):
 
     # ---- 2. attack direction -------------------------------------------
     print("\n" + "-" * 78)
-    print("CHECK 2 — is the target net inferred correctly?")
+    print("CHECK 2 - is the target net inferred correctly?")
     print("-" * 78)
     nn = d.dropna(subset=["pbp_net_x", "our_net_x"])
     agree = np.sign(nn.pbp_net_x) == np.sign(nn.our_net_x)
@@ -183,7 +183,7 @@ def report(df):
 
     # ---- 3. is the chosen frame the release? ----------------------------
     print("\n" + "-" * 78)
-    print("CHECK 3 — is the chosen frame the RELEASE?")
+    print("CHECK 3 - is the chosen frame the RELEASE?")
     print("-" * 78)
     print("  Distance from the PBP's recorded shot location to what we tracked:")
     for lab, col in (("puck at our shot frame", "err_same"),):
@@ -203,7 +203,7 @@ def report(df):
 
     # ---- 4. where does it fail? ----------------------------------------
     print("\n" + "-" * 78)
-    print("CHECK 4 — which goals does it get wrong?")
+    print("CHECK 4 - which goals does it get wrong?")
     print("-" * 78)
     d["bad"] = d.err_same > 20
     d["dist_bin"] = pd.cut(d.our_shot_dist, [0, 15, 25, 35, 50, 70, 100, 200],

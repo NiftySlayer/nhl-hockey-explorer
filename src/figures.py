@@ -115,10 +115,28 @@ def _ecdf(ax, values, color, label, annotate=True):
     return med, p90
 
 
+def _fade(ax, x, y, color, lw, zorder, lo=0.08, hi=0.9):
+    """Draw a path whose opacity ramps from `lo` at the start to `hi` at the end.
+
+    One alpha for a whole trajectory says where a skater has been but not which
+    way they were going. A ramp says both, without arrowheads on top of an
+    already busy rink.
+    """
+    n = len(x)
+    if n < 2:
+        if n:
+            ax.plot(x, y, "o", ms=3, color=color, alpha=hi, zorder=zorder)
+        return
+    alphas = np.linspace(lo, hi, n - 1)
+    for i in range(n - 1):
+        ax.plot(x[i:i + 2], y[i:i + 2], color=color, lw=lw, alpha=alphas[i],
+                zorder=zorder, solid_capstyle="round")
+
+
 def _exists(paths, what):
     missing = [p for p in paths if not Path(p).exists()]
     if missing:
-        print(f"  skipped — {what} needs {missing[0]}")
+        print(f"  skipped - {what} needs {missing[0]}")
         return False
     return True
 
@@ -150,7 +168,7 @@ def fig_shot_validation(lay: pc.Layout, seasons):
         parts.append(au[["season", "game_id", "event_id", "shot_pbp_err_ft",
                          "shot_net_dist_ft", "shot_confidence"]])
     if not parts:
-        print("  skipped — no audit/completeness_*.parquet found")
+        print("  skipped - no audit/completeness_*.parquet found")
         return
     df = pd.concat(parts, ignore_index=True)
 
@@ -236,7 +254,7 @@ def fig_tracking_validation(lay: pc.Layout, seasons):
         rows.append(m[["err_scorer", "err_puck", "shot_confidence"]])
 
     if not rows:
-        print("  skipped — needs processed/tracking/ (run --steps tracking)")
+        print("  skipped - needs processed/tracking/ (run --steps tracking)")
         return
     m = pd.concat(rows, ignore_index=True).dropna(subset=["err_scorer"])
 
@@ -320,7 +338,8 @@ def _rink(ax, half=False):
         sp.set_visible(False)
 
 
-def fig_goal_map(lay: pc.Layout, seasons, game_id=None, event_id=None):
+def fig_goal_map(lay: pc.Layout, seasons, game_id=None, event_id=None,
+                 window=4.0):
     """One goal's whole clip, in the attack frame.
 
     The table's central claim drawn rather than asserted: the attacked net is
@@ -331,7 +350,7 @@ def fig_goal_map(lay: pc.Layout, seasons, game_id=None, event_id=None):
     """
     season = next((s for s in seasons if lay.tracking(s).exists()), None)
     if season is None:
-        print("  skipped — needs processed/tracking/ (run --steps tracking)")
+        print("  skipped - needs processed/tracking/ (run --steps tracking)")
         return
 
     if game_id is None:
@@ -343,7 +362,7 @@ def fig_goal_map(lay: pc.Layout, seasons, game_id=None, event_id=None):
         # a goal with a long clip and a shot from distance shows more motion
         sf = sf[sf.dist_to_net_ft.astype(float).between(25, 55)]
         if sf.empty:
-            print("  skipped — no goal with an attack frame found")
+            print("  skipped - no goal with an attack frame found")
             return
         r = sf.iloc[len(sf) // 2]
         game_id, event_id = int(r.game_id), int(r.event_id)
@@ -352,9 +371,18 @@ def fig_goal_map(lay: pc.Layout, seasons, game_id=None, event_id=None):
                            filters=[("game_id", "==", int(game_id)),
                                     ("event_id", "==", int(event_id))])
     if clip.empty:
-        print(f"  skipped — no rows for game {game_id} event {event_id}")
+        print(f"  skipped - no rows for game {game_id} event {event_id}")
         return
     clip = clip[clip.frame_idx <= clip.goal_frame_idx.max()]
+
+    # Trim to a window before the release. A full clip runs 12-14 s, and over
+    # that long the puck can cross the length of the ice — plotted whole, ten
+    # skaters and a puck become a scrawl with no legible direction. The last
+    # few seconds are the part that produced the goal. (The synthetic fixture
+    # never showed this: its goals barely move.)
+    s2s = clip.seconds_to_shot.astype(float)
+    if window and s2s.notna().any():
+        clip = clip[s2s.isna() | (s2s >= -abs(window))]
 
     fig, ax = plt.subplots(figsize=(11.4, 5.6))
     _rink(ax)
@@ -363,26 +391,32 @@ def fig_goal_map(lay: pc.Layout, seasons, game_id=None, event_id=None):
     players = clip[clip.entity_type == "player"]
     for _, g in players.groupby("player_id"):
         g = g.sort_values("frame_idx")
-        scoring = bool(g.is_scoring_team.iloc[0])
-        color = BLUE if scoring else RED
-        ax.plot(g.x_att.astype(float), g.y_att.astype(float), color=color,
-                lw=1.1, alpha=0.30, zorder=3)
-        ax.plot(g.x_att.astype(float).iloc[-1], g.y_att.astype(float).iloc[-1],
-                "o", ms=7, color=color, alpha=0.85, zorder=5,
+        color = BLUE if bool(g.is_scoring_team.iloc[0]) else RED
+        gx = g.x_att.astype(float).to_numpy()
+        gy = g.y_att.astype(float).to_numpy()
+        # Fade the tail so the direction of travel reads without arrowheads:
+        # where a skater came from is context, where they ended up is the point.
+        _fade(ax, gx, gy, color, lw=1.3, zorder=3, lo=0.06, hi=0.42)
+        ax.plot(gx[-1], gy[-1], "o", ms=7, color=color, alpha=0.9, zorder=5,
                 markeredgecolor=SURFACE, markeredgewidth=1.2)
 
-    ax.plot(puck.x_att.astype(float), puck.y_att.astype(float), color=INK,
-            lw=2.0, zorder=6, solid_capstyle="round")
+    px = puck.x_att.astype(float).to_numpy()
+    py = puck.y_att.astype(float).to_numpy()
+    _fade(ax, px, py, INK, lw=2.2, zorder=6, lo=0.20, hi=1.0)
 
     shot = clip[clip.is_shot_frame & (clip.entity_type == "puck")]
     if not shot.empty:
-        ax.plot(float(shot.x_att.iloc[0]), float(shot.y_att.iloc[0]), "o",
-                ms=11, color=INK, zorder=7, markeredgecolor=SURFACE,
-                markeredgewidth=1.8)
-        ax.annotate("release", xy=(float(shot.x_att.iloc[0]),
-                                   float(shot.y_att.iloc[0])),
-                    xytext=(-26, -24), textcoords="offset points",
-                    fontsize=9.5, color=INK, fontweight="600",
+        sx, sy = float(shot.x_att.iloc[0]), float(shot.y_att.iloc[0])
+        ax.plot(sx, sy, "o", ms=11, color=INK, zorder=7,
+                markeredgecolor=SURFACE, markeredgewidth=1.8)
+        # Put the label on whichever side of the release has open ice, so it
+        # does not land on the cluster of skaters around the puck.
+        dy = -26 if sy > 0 else 26
+        ax.annotate("release", xy=(sx, sy), xytext=(-34, dy),
+                    textcoords="offset points", fontsize=9.5, color=INK,
+                    fontweight="600", zorder=9,
+                    bbox=dict(boxstyle="round,pad=0.25", fc=SURFACE,
+                              ec="none", alpha=0.85),
                     arrowprops=dict(arrowstyle="->", color=INK_2, lw=1.1))
 
     scorer = clip[clip.is_scorer.fillna(False).astype(bool)
@@ -397,11 +431,11 @@ def fig_goal_map(lay: pc.Layout, seasons, game_id=None, event_id=None):
     _sub(ax, "One goal, every 0.1 s, in the attack frame",
          f"Game {int(r0.game_id)}, event {int(r0.event_id)} — "
          f"{r0.shot_type or 'shot'}, period {int(r0.period)} "
-         f"{r0.time_in_period}, {secs:.1f} s of clip to the goal instant. "
-         "Blue is the scoring team,\nred the conceding team, black the puck. "
-         "The attacked net is on the right BY CONSTRUCTION — coordinates are "
-         "rotated\n180° where needed, so every goal in the table stacks the "
-         "same way round.")
+         f"{r0.time_in_period}. The last {secs:.1f} s before the puck crosses "
+         "the line; trails fade\ninto the past. Blue is the scoring team, red "
+         "the conceding team, black the puck. The attacked net is on the "
+         "right\nBY CONSTRUCTION — coordinates are rotated 180° where needed, "
+         "so every goal in the table stacks the same way round.")
     _save(fig, "fig3_goal_map")
 
 
@@ -419,7 +453,7 @@ def fig_puck_motion(lay: pc.Layout, seasons):
     """
     season = next((s for s in seasons if lay.tracking(s).exists()), None)
     if season is None:
-        print("  skipped — needs processed/tracking/ (run --steps tracking)")
+        print("  skipped - needs processed/tracking/ (run --steps tracking)")
         return
 
     pk = pd.read_parquet(lay.tracking(season), dtype_backend="pyarrow",
@@ -436,7 +470,7 @@ def fig_puck_motion(lay: pc.Layout, seasons):
     live = step[(s2g < 0) & step.notna()].to_numpy()
     dead = step[(s2g > 0) & step.notna()].to_numpy()
     if len(live) == 0 or len(dead) == 0:
-        print("  skipped — no live/dead frames to compare")
+        print("  skipped - no live/dead frames to compare")
         return
 
     fig, ax = plt.subplots(figsize=(9.6, 5.3))
@@ -445,29 +479,31 @@ def fig_puck_motion(lay: pc.Layout, seasons):
             label=f"Before the goal instant  (n={len(live):,})")
     ax.hist(dead, bins=bins, color=RED, alpha=0.65, zorder=4,
             label=f"After it  (n={len(dead):,})")
-    for v, c in ((np.median(live), BLUE), (np.median(dead), RED)):
-        ax.axvline(v, color=c, lw=1.4, ls=(0, (4, 3)), zorder=5)
-    ax.annotate(f"median {np.median(dead):.2f} ft",
-                xy=(np.median(dead), 0), xytext=(1.1, 0.62),
-                textcoords="axes fraction", fontsize=9.5, color=RED,
-                fontweight="600", ha="left")
-    ax.text(np.median(live) + 0.25, 0.80, f"median {np.median(live):.2f} ft",
-            transform=ax.get_xaxis_transform(), fontsize=9.5, color=BLUE,
-            fontweight="600")
+    m_live, m_dead = float(np.median(live)), float(np.median(dead))
     ax.set_xlim(0, 8)
+    for v, c in ((m_live, BLUE), (m_dead, RED)):
+        ax.axvline(v, color=c, lw=1.4, ls=(0, (4, 3)), zorder=5)
+
+    # Both labels in axis coordinates, offset from their own line and clamped
+    # inside the axes. The dead median sits within a tenth of a foot of zero,
+    # so its label has to be pushed right of the line or it runs off the left
+    # edge; an axes-fraction xytext past 1.0 puts it off the canvas entirely.
+    ax.text(min(m_dead + 0.18, 7.4), 0.62, f"median {m_dead:.2f} ft",
+            transform=ax.get_xaxis_transform(), fontsize=9.5, color=RED,
+            fontweight="600", ha="left", va="center", zorder=6)
+    ax.text(min(m_live + 0.25, 7.4), 0.80, f"median {m_live:.2f} ft",
+            transform=ax.get_xaxis_transform(), fontsize=9.5, color=BLUE,
+            fontweight="600", ha="left", va="center", zorder=6)
+
     ax.set_xlabel("How far the puck moved between consecutive frames (ft per 0.1 s)")
     ax.set_ylabel("Frames")
     ax.grid(axis="x", visible=False)
     ax.legend(frameon=False, fontsize=9, loc="upper right")
-    ax.set_title("The clip keeps recording after the puck is in the net",
-                 loc="left", fontsize=13, fontweight="600", color=INK, pad=32)
-    ax.text(0, 1.04,
-            f"{season}, every puck frame. The separation is what locates the "
-            "goal instant: recording continues while the\npuck sits in the net "
-            "and the scorer skates in to celebrate, so the last frame of a clip "
-            "is not the goal.",
-            transform=ax.transAxes, fontsize=9, color=INK_2, va="bottom",
-            linespacing=1.45)
+    _sub(ax, "The clip keeps recording after the puck is in the net",
+         f"{season}, every puck frame. Recording continues while the puck sits "
+         "in the net and the scorer skates in to\ncelebrate, so the last frame "
+         "of a clip is not the goal. The separation between these two "
+         "distributions is what\nlocates the goal instant.")
     _save(fig, "fig4_puck_motion")
 
 
@@ -485,6 +521,9 @@ def main():
     ap.add_argument("--game-id", type=int, default=None,
                     help="pin fig3 to one goal (with --event-id)")
     ap.add_argument("--event-id", type=int, default=None)
+    ap.add_argument("--window", type=float, default=4.0,
+                    help="seconds before the release to draw in fig3 "
+                         "(0 = the whole clip, which on a long rush is a scrawl)")
     ap.add_argument("--out", default="figures", help="output directory")
     args = ap.parse_args()
 
@@ -496,7 +535,7 @@ def main():
         "shot_validation": lambda: fig_shot_validation(lay, args.seasons),
         "tracking_validation": lambda: fig_tracking_validation(lay, args.seasons),
         "goal_map": lambda: fig_goal_map(lay, args.seasons, args.game_id,
-                                         args.event_id),
+                                         args.event_id, args.window),
         "puck_motion": lambda: fig_puck_motion(lay, args.seasons),
     }
     if not args.all and not args.only:

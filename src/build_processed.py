@@ -1000,9 +1000,9 @@ def build_events_and_audit(lay: pc.Layout, season, position_map):
           f"from {n_sprites}/{n_goals} goals with sprites")
     print(f"    completeness_{season}.parquet: {len(au)} goals")
     print(f"      scorer-match @ goal frame : {match_rate('scorer_match_goalframe'):.1f}%  "
-          f"(expected ~5% — the puck is in the net, so the goalie is nearest)")
+          f"(expected ~5% - the puck is in the net, so the goalie is nearest)")
     print(f"      scorer-match @ shot frame : {match_rate('scorer_match_shotframe'):.1f}%  "
-          f"(consistency check — see shotframe_validation.py)")
+          f"(consistency check - see shotframe_validation.py)")
     return len(ev), len(au)
 
 
@@ -1393,6 +1393,11 @@ def main():
     args = ap.parse_args()
 
     lay = pc.Layout(args.root)
+    # Before build_players, not after: it reads all of raw/pbp and writes
+    # processed/players.parquet, so it would empty a good players table on a
+    # misplaced archive before build_season's own guard could stop anything.
+    for season in args.seasons:
+        pc.require_raw(lay, season, sprites=args.tracking)
     position_map = build_players(lay)  # global, from all raw pbp on disk
     for season in args.seasons:
         build_season(lay, season, position_map, tracking=args.tracking)

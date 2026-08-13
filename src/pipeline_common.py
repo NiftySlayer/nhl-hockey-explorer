@@ -326,7 +326,7 @@ def require_raw(lay: "Layout", season, sprites=False):
     raise SystemExit(
         f"\nNothing to build: no {missing} for season {season}.\n"
         f"  looked in: {pbp_dir}\n\n"
-        f"If you have downloaded the archive, extract it INTO raw/ — the zip's\n"
+        f"If you have downloaded the archive, extract it INTO raw/ - the zip's\n"
         f"top level is sprites/ pbp/ shifts/, with no raw/ prefix, so unzipping\n"
         f"at the repository root puts every file just out of reach:\n"
         f"    unzip nhl-tracking-raw-{season}.zip -d raw/\n"

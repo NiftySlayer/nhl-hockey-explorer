@@ -114,6 +114,12 @@ that can be checked without downloading the archive.
 
 ## Verifying a download
 
+⚠️ **`manifest-{season}.jsonl` is not inside the zip.** It is a separate file on
+the Zenodo record, listed beside the three season archives, so download it too —
+otherwise the snippet below fails on its first line with a `FileNotFoundError`
+and nothing explains why. The snippet also assumes it is in the directory you
+are running from; point the path at wherever it actually landed.
+
 ```python
 import hashlib, json
 from pathlib import Path

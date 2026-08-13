@@ -135,7 +135,7 @@ def load_pbp_goals(lay: pc.Layout, season):
 def check_frame_indices(v, sf, au):
     """tracking's frame indices vs the ones the audit already published."""
     print("\n" + "-" * 78)
-    print("CHECK 1 — does the tracking build pick the SAME frames as the audit?")
+    print("CHECK 1 - does the tracking build pick the SAME frames as the audit?")
     print("-" * 78)
     print("  build_tracking re-sequences the detector instead of calling")
     print("  process_goal. If the two ever diverge, they diverge silently.")
@@ -164,7 +164,7 @@ def check_frame_indices(v, sf, au):
 def check_scorer_puck_distance(v, sf, au):
     """dist_to_puck_ft for the scorer vs the audit's scorer_dist_shotframe."""
     print("\n" + "-" * 78)
-    print("CHECK 2 — shooter-to-puck distance at the shot frame")
+    print("CHECK 2 - shooter-to-puck distance at the shot frame")
     print("-" * 78)
     print("  The same quantity the shot-frame dataset already publishes,")
     print("  recomputed independently in the tracking build. Unsmoothed on both")
@@ -208,12 +208,12 @@ def _bands(err, label):
 def check_shooter_location(v, sf, pbp, au):
     """Absolute (x, y) of the identified shooter vs the PBP's goal location."""
     print("\n" + "-" * 78)
-    print("CHECK 3 — is the shooter where the play-by-play says the goal was?")
+    print("CHECK 3 - is the shooter where the play-by-play says the goal was?")
     print("-" * 78)
     print("  The independent check: nothing in the pipeline reads the PBP's own")
     print("  goal coordinates, so unlike a self-consistency statistic this one")
     print("  can actually fail. The puck at the same frame is the published")
-    print(f"  baseline (METHODS §7.4: median 2.04 ft, 90.1% within {AGREE_FT:.0f} ft).")
+    print(f"  baseline (METHODS sec. 7.4: median 2.04 ft, 90.1% within {AGREE_FT:.0f} ft).")
 
     who = sf.entity_type == "player"
     sc = sf[who & sf.is_scorer.fillna(False).astype(bool)]
@@ -278,7 +278,7 @@ def check_shooter_location(v, sf, pbp, au):
 def check_orientation(v, m):
     """Does the whole season share one orientation with the play-by-play?"""
     print("\n" + "-" * 78)
-    print("CHECK 4 — do the tracking table and the PBP share a coordinate frame?")
+    print("CHECK 4 - do the tracking table and the PBP share a coordinate frame?")
     print("-" * 78)
     print("  If a subset of the season were stored with the rink reversed, the")
     print("  negated coordinates would fit the PBP better for that subset.")
@@ -302,7 +302,7 @@ def check_orientation(v, m):
 def check_attack_frame(v, lay, season, sf, gp, pbp):
     """The rotation, the net it points at, and where the puck ends up."""
     print("\n" + "-" * 78)
-    print("CHECK 5 — the attack frame")
+    print("CHECK 5 - the attack frame")
     print("-" * 78)
 
     # (a) rotation, not mirror — streamed over the whole season
@@ -359,7 +359,7 @@ def check_attack_frame(v, lay, season, sf, gp, pbp):
 
     # (c) the end-to-end proof: the puck ends up IN the attacked net
     print("\n  (c) the puck's x_att at the goal frame. The goal instant is the")
-    print("      puck's arrival at the net, so it should sit near +89 — this is")
+    print("      puck's arrival at the net, so it should sit near +89 - this is")
     print("      what proves the flip points at the right end.")
     xa = _f(gp.x_att)
     xa = xa[~np.isnan(xa)]
@@ -390,7 +390,7 @@ def check_attack_frame(v, lay, season, sf, gp, pbp):
 def check_structure(v, lay, season, sf, au):
     """Row counts, coordinate ranges, one puck per frame, null rates."""
     print("\n" + "-" * 78)
-    print("CHECK 6 — structure")
+    print("CHECK 6 - structure")
     print("-" * 78)
 
     f = pq.ParquetFile(lay.tracking(season))
@@ -479,7 +479,7 @@ def check_structure(v, lay, season, sf, au):
 
 def validate_season(lay: pc.Layout, season):
     print("\n" + "=" * 78)
-    print(f"TRACKING TABLE VALIDATION — {season}")
+    print(f"TRACKING TABLE VALIDATION - {season}")
     print("=" * 78)
 
     sf = load_shot_frames(lay, season)
@@ -514,7 +514,7 @@ def main():
     frames = []
     for season in args.seasons:
         if not lay.tracking(season).exists():
-            print(f"\n{season}: no tracking table — build it with "
+            print(f"\n{season}: no tracking table - build it with "
                   f"`--steps tracking`. Skipped.")
             continue
         ok, m = validate_season(lay, season)

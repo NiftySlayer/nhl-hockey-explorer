@@ -104,6 +104,15 @@ def main():
         for season in args.seasons:
             scrape_edge_season(lay, season, args.game_type, args.delay, args.force)
 
+    # Check EVERY season before writing anything. build_players reads all of
+    # raw/pbp at once and writes processed/players.parquet, so it runs before
+    # any per-season guard inside build_season would fire — pointed at a
+    # misplaced archive it would truncate a good players.parquet to zero rows
+    # and only then abort. Preflight the whole set instead.
+    if args.steps in ("all", "build", "tracking"):
+        for season in args.seasons:
+            pc.require_raw(lay, season, sprites=(args.steps == "tracking"))
+
     if args.steps in ("all", "build"):
         position_map = build_players(lay)
         for season in args.seasons:
