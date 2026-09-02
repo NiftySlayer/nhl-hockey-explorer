@@ -1,0 +1,2752 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+    <title>NHL Goal Clip</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #f4f4f4;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 750px;
+            margin: 20px auto;
+        }
+
+        .rink {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 200 / 85;
+
+            background-image: url('{{ rink_url }}');
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+        }
+
+        .marker {
+            position: absolute;
+
+            width: 26px;
+            height: 26px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            font-size: 11px;
+            font-weight: bold;
+
+            color: white;
+
+            transform: translate(-50%, -50%);
+
+            z-index: 5;
+        }
+
+        .home-player {
+            background: #1f77b4;
+            border-radius: 50%;
+        }
+
+        .away-player {
+            background: #ff7f0e;
+        }
+
+        .home-goalie {
+            background: #1f77b4;
+
+            clip-path: polygon(
+                50% 0%,
+                100% 50%,
+                50% 100%,
+                0% 50%
+            );
+        }
+
+        .away-goalie {
+            background: #ff7f0e;
+
+            clip-path: polygon(
+                50% 0%,
+                100% 50%,
+                50% 100%,
+                0% 50%
+            );
+        }
+
+        .home-goalie,
+        .away-goalie {
+            width: 26px;
+            height: 26px;
+
+            font-size: 11px;
+        }
+
+        .puck {
+            position: absolute;
+
+            width: 10px;
+            height: 10px;
+
+            background: black;
+            border-radius: 50%;
+
+            transform: translate(-50%, -50%);
+
+            z-index: 10;
+        }
+
+        .puck-trail-dot {
+            position: absolute;
+
+            background: black;
+            border-radius: 50%;
+
+            transform: translate(-50%, -50%);
+
+            pointer-events: none;
+
+            z-index: 8;
+        }
+
+        .scorer-ring {
+            position: absolute;
+
+            width: 36px;
+            height: 36px;
+
+            border: 2px solid black;
+            border-radius: 50%;
+
+            transform: translate(-50%, -50%);
+
+            pointer-events: none;
+
+            z-index: 9;
+        }
+
+        .frame-info {
+            margin: 10px 0;
+
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+
+        /* =====================================================
+           CONTROLS
+        ===================================================== */
+
+        .controls {
+            margin-top: 14px;
+
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+
+            gap: 10px;
+        }
+
+        .control-button {
+            padding: 8px 14px;
+
+            border: 1px solid #777;
+            border-radius: 6px;
+
+            background: white;
+
+            font-size: 14px;
+            font-weight: bold;
+
+            cursor: pointer;
+        }
+
+        .control-button:hover {
+            background: #e8e8e8;
+        }
+
+        .control-button:active {
+            background: #d8d8d8;
+        }
+
+        .control-button.active {
+            background: #333;
+            color: white;
+            border-color: #333;
+        }
+
+
+        /* =====================================================
+           SPEED CONTROLS
+        ===================================================== */
+
+        .speed-controls {
+            margin-top: 10px;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            gap: 8px;
+        }
+
+        .speed-label {
+            margin-right: 4px;
+
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .speed-button {
+            min-width: 52px;
+
+            padding: 6px 10px;
+
+            border: 1px solid #777;
+            border-radius: 6px;
+
+            background: white;
+
+            font-size: 13px;
+            font-weight: bold;
+
+            cursor: pointer;
+        }
+
+        .speed-button:hover {
+            background: #e8e8e8;
+        }
+
+        .speed-button.active {
+            background: #333;
+            color: white;
+            border-color: #333;
+        }
+
+
+        /* =====================================================
+           TIMELINE
+        ===================================================== */
+
+        .timeline {
+            margin-top: 16px;
+        }
+
+        .timeline-track-wrapper {
+            position: relative;
+
+            width: 100%;
+        }
+
+        #timeline-slider {
+            width: 100%;
+            cursor: pointer;
+
+            position: relative;
+
+            z-index: 2;
+        }
+
+        .goal-marker {
+            position: absolute;
+
+            top: 0;
+            bottom: 0;
+
+            width: 2px;
+
+            background: #c00000;
+
+            transform: translateX(-1px);
+
+            pointer-events: none;
+
+            z-index: 3;
+
+            display: none;
+        }
+
+        .goal-marker-label {
+            position: absolute;
+
+            top: -16px;
+
+            transform: translateX(-50%);
+
+            font-size: 10px;
+            font-weight: bold;
+
+            color: #c00000;
+
+            pointer-events: none;
+
+            display: none;
+        }
+
+        .timeline-labels {
+            display: flex;
+            justify-content: space-between;
+
+            margin-top: 5px;
+
+            font-size: 12px;
+            color: #555;
+        }
+
+        .timeline-current {
+            font-weight: bold;
+            color: #222;
+        }
+
+
+        /* =====================================================
+           LEGEND
+        ===================================================== */
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+
+            gap: 18px;
+
+            margin-top: 16px;
+
+            font-size: 13px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+
+            gap: 7px;
+        }
+
+        .legend-symbol {
+            width: 18px;
+            height: 18px;
+
+            display: inline-block;
+
+            position: relative;
+
+            flex-shrink: 0;
+        }
+
+        .legend-home-player {
+            background: #1f77b4;
+            border-radius: 50%;
+        }
+
+        .legend-away-player {
+            background: #ff7f0e;
+        }
+
+        .legend-home-goalie {
+            background: #1f77b4;
+
+            clip-path: polygon(
+                50% 0%,
+                100% 50%,
+                50% 100%,
+                0% 50%
+            );
+        }
+
+        .legend-away-goalie {
+            background: #ff7f0e;
+
+            clip-path: polygon(
+                50% 0%,
+                100% 50%,
+                50% 100%,
+                0% 50%
+            );
+        }
+
+        .legend-puck {
+            width: 9px;
+            height: 9px;
+
+            background: black;
+            border-radius: 50%;
+        }
+
+        .legend-scorer {
+            width: 20px;
+            height: 20px;
+
+            border: 2px solid black;
+            border-radius: 50%;
+
+            background: transparent;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <div class="container">
+
+        <h1>
+            {{ away_abbr }} at {{ home_abbr }}
+        </h1>
+
+        <h2>
+            Goal: {{ scorer }}
+        </h2>
+
+        <p>
+            {{ game_date }}
+        </p>
+
+
+        <div
+            id="frame-info"
+            class="frame-info"
+        >
+        </div>
+
+
+        <div
+            id="rink"
+            class="rink"
+        >
+        </div>
+
+
+        <!-- =================================================
+             PLAYBACK CONTROLS
+        ================================================== -->
+
+        <div class="controls">
+
+            <button
+                id="previous-frame-button"
+                class="control-button"
+                type="button"
+            >
+                ◀ Frame
+            </button>
+
+
+            <button
+                id="play-pause-button"
+                class="control-button"
+                type="button"
+            >
+                Pause
+            </button>
+
+
+            <button
+                id="restart-button"
+                class="control-button"
+                type="button"
+            >
+                Restart
+            </button>
+
+
+            <button
+                id="next-frame-button"
+                class="control-button"
+                type="button"
+            >
+                Frame ▶
+            </button>
+
+
+            <button
+                id="puck-trail-button"
+                class="control-button"
+                type="button"
+            >
+                Puck Trail: Off
+            </button>
+
+        </div>
+
+
+        <!-- =================================================
+             SPEED CONTROLS
+        ================================================== -->
+
+        <div class="speed-controls">
+
+            <span class="speed-label">
+                Speed:
+            </span>
+
+
+            <button
+                id="speed-half"
+                class="speed-button"
+                type="button"
+            >
+                0.5×
+            </button>
+
+
+            <button
+                id="speed-normal"
+                class="speed-button active"
+                type="button"
+            >
+                1×
+            </button>
+
+
+            <button
+                id="speed-double"
+                class="speed-button"
+                type="button"
+            >
+                2×
+            </button>
+
+        </div>
+
+
+        <!-- =================================================
+             TIMELINE
+        ================================================== -->
+
+        <div class="timeline">
+
+            <div class="timeline-track-wrapper">
+
+                <div
+                    id="goal-marker"
+                    class="goal-marker"
+                >
+                </div>
+
+
+                <div
+                    id="goal-marker-label"
+                    class="goal-marker-label"
+                >
+                    GOAL
+                </div>
+
+
+                <input
+                    id="timeline-slider"
+                    type="range"
+                    min="0"
+                    max="0"
+                    value="0"
+                    step="1"
+                />
+
+            </div>
+
+
+            <div class="timeline-labels">
+
+                <span>
+                    Clip Start
+                </span>
+
+
+                <span
+                    id="current-time"
+                    class="timeline-current"
+                >
+                    --
+                </span>
+
+
+                <span>
+                    Clip End
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             LEGEND
+        ================================================== -->
+
+        <div class="legend">
+
+            <div class="legend-item">
+
+                <span
+                    class="
+                        legend-symbol
+                        legend-home-player
+                    "
+                >
+                </span>
+
+                <span>
+                    {{ home_abbr }} Skater
+                </span>
+
+            </div>
+
+
+            <div class="legend-item">
+
+                <span
+                    class="
+                        legend-symbol
+                        legend-away-player
+                    "
+                >
+                </span>
+
+                <span>
+                    {{ away_abbr }} Skater
+                </span>
+
+            </div>
+
+
+            <div class="legend-item">
+
+                <span
+                    class="
+                        legend-symbol
+                        legend-home-goalie
+                    "
+                >
+                </span>
+
+                <span>
+                    {{ home_abbr }} Goalie
+                </span>
+
+            </div>
+
+
+            <div class="legend-item">
+
+                <span
+                    class="
+                        legend-symbol
+                        legend-away-goalie
+                    "
+                >
+                </span>
+
+                <span>
+                    {{ away_abbr }} Goalie
+                </span>
+
+            </div>
+
+
+            <div class="legend-item">
+
+                <span
+                    class="
+                        legend-symbol
+                        legend-puck
+                    "
+                >
+                </span>
+
+                <span>
+                    Puck
+                </span>
+
+            </div>
+
+
+            <div class="legend-item">
+
+                <span
+                    class="
+                        legend-symbol
+                        legend-scorer
+                    "
+                >
+                </span>
+
+                <span>
+                    Scorer
+                </span>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+        // =====================================================
+        // TRACKING DATA FROM FLASK
+        // =====================================================
+
+        const frames =
+            {{ frames_json | safe }};
+
+
+        // =====================================================
+        // PAGE ELEMENTS
+        // =====================================================
+
+        const rink =
+            document.getElementById(
+                "rink"
+            );
+
+        const frameInfo =
+            document.getElementById(
+                "frame-info"
+            );
+
+        const previousFrameButton =
+            document.getElementById(
+                "previous-frame-button"
+            );
+
+        const playPauseButton =
+            document.getElementById(
+                "play-pause-button"
+            );
+
+        const restartButton =
+            document.getElementById(
+                "restart-button"
+            );
+
+        const nextFrameButton =
+            document.getElementById(
+                "next-frame-button"
+            );
+
+        const puckTrailButton =
+            document.getElementById(
+                "puck-trail-button"
+            );
+
+        const timelineSlider =
+            document.getElementById(
+                "timeline-slider"
+            );
+
+        const currentTimeLabel =
+            document.getElementById(
+                "current-time"
+            );
+
+        const goalMarker =
+            document.getElementById(
+                "goal-marker"
+            );
+
+        const goalMarkerLabel =
+            document.getElementById(
+                "goal-marker-label"
+            );
+
+        const speedHalfButton =
+            document.getElementById(
+                "speed-half"
+            );
+
+        const speedNormalButton =
+            document.getElementById(
+                "speed-normal"
+            );
+
+        const speedDoubleButton =
+            document.getElementById(
+                "speed-double"
+            );
+
+
+        // =====================================================
+        // ANIMATION VARIABLES
+        // =====================================================
+
+        let currentFrame = 0;
+
+        let displayedFrame = 0;
+
+        let animationTimer = null;
+
+        let isPlaying = true;
+
+        let playbackSpeed = 1.0;
+
+        const baseFrameDelay = 100;
+
+
+        // =====================================================
+        // PLAYER MARKERS BY PLAYER ID
+        // =====================================================
+
+        const playerMarkers =
+            new Map();
+
+        const scorerRings =
+            new Map();
+
+        let puckMarker =
+            null;
+
+
+        // =====================================================
+        // PUCK TRAIL SETTINGS
+        // =====================================================
+
+        let puckTrailEnabled =
+            false;
+
+        const puckTrailLength =
+            10;
+
+        const puckTrailDots =
+            [];
+
+
+        // =====================================================
+        // GOAL PAUSE
+        // =====================================================
+
+        const goalPauseMilliseconds =
+            1000;
+
+        let goalPauseActive =
+            false;
+
+        let goalPauseTimer =
+            null;
+
+
+        // =====================================================
+        // FIND GOAL FRAME
+        //
+        // First find the NHL event timestamp frame as a fallback.
+        // Then look for the puck physically crossing either goal line.
+        // If one or more crossings are found, use the crossing closest
+        // to the NHL event timestamp.
+        // =====================================================
+
+        let officialGoalFrameIndex =
+            -1;
+
+        let smallestGoalDistance =
+            Infinity;
+
+
+        frames.forEach(
+            (
+                frame,
+                index
+            ) => {
+
+                if (
+                    frame.seconds_to_goal
+                    === null
+                ) {
+
+                    return;
+
+                }
+
+
+                const distance =
+                    Math.abs(
+                        frame.seconds_to_goal
+                    );
+
+
+                if (
+                    distance
+                    < smallestGoalDistance
+                ) {
+
+                    smallestGoalDistance =
+                        distance;
+
+                    officialGoalFrameIndex =
+                        index;
+
+                }
+
+            }
+        );
+
+
+        const goalLineX =
+            89.0;
+
+        const goalMouthHalfWidth =
+            4.0;
+
+
+        const puckGoalCrossings =
+            [];
+
+
+        for (
+            let index = 1;
+            index < frames.length;
+            index++
+        ) {
+
+            const previousPuck =
+                frames[
+                    index - 1
+                ].puck;
+
+            const currentPuck =
+                frames[
+                    index
+                ].puck;
+
+
+            if (
+                previousPuck === null
+                ||
+                currentPuck === null
+            ) {
+
+                continue;
+
+            }
+
+
+            // -------------------------------------------------
+            // RIGHT NET:
+            // puck moves from in front of +89 to behind +89
+            // -------------------------------------------------
+
+            const crossedRightGoalLine =
+                (
+                    previousPuck.x < goalLineX
+                    &&
+                    currentPuck.x >= goalLineX
+                );
+
+
+            // -------------------------------------------------
+            // LEFT NET:
+            // puck moves from in front of -89 to behind -89
+            // -------------------------------------------------
+
+            const crossedLeftGoalLine =
+                (
+                    previousPuck.x > -goalLineX
+                    &&
+                    currentPuck.x <= -goalLineX
+                );
+
+
+            if (
+                !crossedRightGoalLine
+                &&
+                !crossedLeftGoalLine
+            ) {
+
+                continue;
+
+            }
+
+
+            // -------------------------------------------------
+            // ESTIMATE Y WHERE THE PUCK CROSSED THE GOAL LINE
+            //
+            // Interpolating the crossing point is more accurate
+            // than looking only at the current frame's Y value.
+            // -------------------------------------------------
+
+            const targetX =
+                crossedRightGoalLine
+                    ? goalLineX
+                    : -goalLineX;
+
+
+            const deltaX =
+                currentPuck.x
+                - previousPuck.x;
+
+
+            let crossingRatio =
+                1.0;
+
+
+            if (
+                Math.abs(
+                    deltaX
+                )
+                > 0.0001
+            ) {
+
+                crossingRatio =
+                    (
+                        targetX
+                        - previousPuck.x
+                    )
+                    / deltaX;
+
+            }
+
+
+            crossingRatio =
+                Math.max(
+                    0,
+                    Math.min(
+                        1,
+                        crossingRatio
+                    )
+                );
+
+
+            const crossingY =
+                previousPuck.y
+                +
+                (
+                    currentPuck.y
+                    - previousPuck.y
+                )
+                * crossingRatio;
+
+
+            // -------------------------------------------------
+            // THE PUCK MUST CROSS THROUGH THE GOAL MOUTH
+            // -------------------------------------------------
+
+            if (
+                Math.abs(
+                    crossingY
+                )
+                > goalMouthHalfWidth
+            ) {
+
+                continue;
+
+            }
+
+
+            puckGoalCrossings.push(
+                index
+            );
+
+        }
+
+
+        let goalFrameIndex =
+            officialGoalFrameIndex;
+
+
+        // -----------------------------------------------------
+        // USE THE PHYSICAL PUCK CROSSING CLOSEST TO THE
+        // OFFICIAL NHL GOAL TIMESTAMP.
+        // -----------------------------------------------------
+
+        if (
+            puckGoalCrossings.length > 0
+        ) {
+
+            if (
+                officialGoalFrameIndex >= 0
+            ) {
+
+                goalFrameIndex =
+                    puckGoalCrossings.reduce(
+                        (
+                            bestIndex,
+                            candidateIndex
+                        ) => {
+
+                            const bestDistance =
+                                Math.abs(
+                                    bestIndex
+                                    - officialGoalFrameIndex
+                                );
+
+                            const candidateDistance =
+                                Math.abs(
+                                    candidateIndex
+                                    - officialGoalFrameIndex
+                                );
+
+
+                            if (
+                                candidateDistance
+                                < bestDistance
+                            ) {
+
+                                return candidateIndex;
+
+                            }
+
+
+                            return bestIndex;
+
+                        }
+                    );
+
+            }
+
+            else {
+
+                goalFrameIndex =
+                    puckGoalCrossings[0];
+
+            }
+
+        }
+
+
+        // -----------------------------------------------------
+        // STORE THE ORIGINAL NHL TIME VALUE AT THE VISUAL
+        // GOAL FRAME.  We use this as an offset so the labels
+        // become 0.00 exactly when the puck crosses the line.
+        // -----------------------------------------------------
+
+        let visualGoalTimeOffset =
+            null;
+
+
+        if (
+            goalFrameIndex >= 0
+            &&
+            frames[
+                goalFrameIndex
+            ].seconds_to_goal !== null
+        ) {
+
+            visualGoalTimeOffset =
+                frames[
+                    goalFrameIndex
+                ].seconds_to_goal;
+
+        }
+
+
+        // =====================================================
+        // SET UP TIMELINE
+        // =====================================================
+
+        timelineSlider.max =
+            Math.max(
+                0,
+                frames.length - 1
+            );
+
+        timelineSlider.value =
+            0;
+
+
+        // =====================================================
+        // POSITION GOAL MARKER
+        // =====================================================
+
+        function positionGoalMarker() {
+
+            if (
+                goalFrameIndex < 0
+                ||
+                frames.length <= 1
+            ) {
+
+                goalMarker.style.display =
+                    "none";
+
+                goalMarkerLabel.style.display =
+                    "none";
+
+                return;
+
+            }
+
+
+            const percent =
+                (
+                    goalFrameIndex
+                    /
+                    (
+                        frames.length - 1
+                    )
+                )
+                * 100;
+
+
+            goalMarker.style.left =
+                percent
+                + "%";
+
+            goalMarkerLabel.style.left =
+                percent
+                + "%";
+
+
+            goalMarker.style.display =
+                "block";
+
+            goalMarkerLabel.style.display =
+                "block";
+
+        }
+
+
+        // =====================================================
+        // NHL COORDINATES -> BROWSER PERCENTAGES
+        // =====================================================
+
+        function rinkToPercent(
+            x,
+            y
+        ) {
+
+            const left =
+                (
+                    (x + 100)
+                    / 200
+                )
+                * 100;
+
+
+            const top =
+                (
+                    (42.5 - y)
+                    / 85
+                )
+                * 100;
+
+
+            return {
+                left: left,
+                top: top
+            };
+
+        }
+
+
+        // =====================================================
+        // KEEP PUCK INSIDE NHL RINK
+        // =====================================================
+
+        function keepPuckInsideRink(
+            x,
+            y
+        ) {
+
+            const margin =
+                1.0;
+
+
+            const maxX =
+                100.0
+                - margin;
+
+            const maxY =
+                42.5
+                - margin;
+
+
+            x =
+                Math.max(
+                    -maxX,
+                    Math.min(
+                        maxX,
+                        x
+                    )
+                );
+
+
+            y =
+                Math.max(
+                    -maxY,
+                    Math.min(
+                        maxY,
+                        y
+                    )
+                );
+
+
+            const cornerRadius =
+                28.0;
+
+            const cornerCenterX =
+                100.0
+                - cornerRadius;
+
+            const cornerCenterY =
+                42.5
+                - cornerRadius;
+
+            const safeRadius =
+                cornerRadius
+                - margin;
+
+
+            if (
+                Math.abs(x)
+                    > cornerCenterX
+                &&
+                Math.abs(y)
+                    > cornerCenterY
+            ) {
+
+
+                const cx =
+                    Math.sign(x)
+                    * cornerCenterX;
+
+                const cy =
+                    Math.sign(y)
+                    * cornerCenterY;
+
+
+                const dx =
+                    x - cx;
+
+                const dy =
+                    y - cy;
+
+
+                const distance =
+                    Math.sqrt(
+                        dx * dx
+                        +
+                        dy * dy
+                    );
+
+
+                if (
+                    distance
+                    > safeRadius
+                ) {
+
+
+                    const scale =
+                        safeRadius
+                        / distance;
+
+
+                    x =
+                        cx
+                        +
+                        dx * scale;
+
+                    y =
+                        cy
+                        +
+                        dy * scale;
+
+                }
+
+            }
+
+
+            return {
+                x: x,
+                y: y
+            };
+
+        }
+
+
+        // =====================================================
+        // CREATE OR FIND PLAYER MARKER
+        // =====================================================
+
+        function getPlayerMarker(
+            playerId
+        ) {
+
+            const key =
+                String(
+                    playerId
+                );
+
+
+            if (
+                playerMarkers.has(
+                    key
+                )
+            ) {
+
+                return playerMarkers.get(
+                    key
+                );
+
+            }
+
+
+            const marker =
+                document.createElement(
+                    "div"
+                );
+
+
+            marker.classList.add(
+                "marker"
+            );
+
+
+            marker.style.display =
+                "none";
+
+
+            rink.appendChild(
+                marker
+            );
+
+
+            playerMarkers.set(
+                key,
+                marker
+            );
+
+
+            return marker;
+
+        }
+
+
+        // =====================================================
+        // CREATE OR FIND SCORER RING
+        // =====================================================
+
+        function getScorerRing(
+            playerId
+        ) {
+
+            const key =
+                String(
+                    playerId
+                );
+
+
+            if (
+                scorerRings.has(
+                    key
+                )
+            ) {
+
+                return scorerRings.get(
+                    key
+                );
+
+            }
+
+
+            const ring =
+                document.createElement(
+                    "div"
+                );
+
+
+            ring.classList.add(
+                "scorer-ring"
+            );
+
+
+            ring.style.display =
+                "none";
+
+
+            rink.appendChild(
+                ring
+            );
+
+
+            scorerRings.set(
+                key,
+                ring
+            );
+
+
+            return ring;
+
+        }
+
+
+        // =====================================================
+        // HIDE ALL PLAYER MARKERS
+        // =====================================================
+
+        function hideAllPlayers() {
+
+            playerMarkers.forEach(
+                marker => {
+
+                    marker.style.display =
+                        "none";
+
+                }
+            );
+
+
+            scorerRings.forEach(
+                ring => {
+
+                    ring.style.display =
+                        "none";
+
+                }
+            );
+
+        }
+
+
+        // =====================================================
+        // CREATE PUCK
+        // =====================================================
+
+        puckMarker =
+            document.createElement(
+                "div"
+            );
+
+
+        puckMarker.classList.add(
+            "puck"
+        );
+
+
+        puckMarker.style.display =
+            "none";
+
+
+        rink.appendChild(
+            puckMarker
+        );
+
+
+        // =====================================================
+        // CREATE PUCK TRAIL DOTS ONCE
+        // =====================================================
+
+        for (
+            let i = 0;
+            i < puckTrailLength;
+            i++
+        ) {
+
+            const dot =
+                document.createElement(
+                    "div"
+                );
+
+
+            dot.classList.add(
+                "puck-trail-dot"
+            );
+
+
+            dot.style.display =
+                "none";
+
+
+            rink.appendChild(
+                dot
+            );
+
+
+            puckTrailDots.push(
+                dot
+            );
+
+        }
+
+
+        // =====================================================
+        // HIDE PUCK TRAIL
+        // =====================================================
+
+        function hidePuckTrail() {
+
+            puckTrailDots.forEach(
+                dot => {
+
+                    dot.style.display =
+                        "none";
+
+                }
+            );
+
+        }
+
+
+        // =====================================================
+        // DRAW PUCK TRAIL
+        //
+        // Looks backward from the current frame.
+        // =====================================================
+
+        function drawPuckTrail(
+            frameIndex
+        ) {
+
+            hidePuckTrail();
+
+
+            if (
+                !puckTrailEnabled
+            ) {
+
+                return;
+
+            }
+
+
+            let dotIndex =
+                0;
+
+
+            for (
+                let offset = 1;
+                offset <= puckTrailLength;
+                offset++
+            ) {
+
+                const historyIndex =
+                    frameIndex
+                    - offset;
+
+
+                if (
+                    historyIndex < 0
+                ) {
+
+                    break;
+
+                }
+
+
+                const historicalFrame =
+                    frames[
+                        historyIndex
+                    ];
+
+
+                if (
+                    historicalFrame.puck
+                    === null
+                ) {
+
+                    continue;
+
+                }
+
+
+                const safePuck =
+                    keepPuckInsideRink(
+                        historicalFrame.puck.x,
+                        historicalFrame.puck.y
+                    );
+
+
+                const position =
+                    rinkToPercent(
+                        safePuck.x,
+                        safePuck.y
+                    );
+
+
+                const dot =
+                    puckTrailDots[
+                        dotIndex
+                    ];
+
+
+                if (
+                    !dot
+                ) {
+
+                    break;
+
+                }
+
+
+                const ageRatio =
+                    offset
+                    /
+                    puckTrailLength;
+
+
+                const dotSize =
+                    8
+                    -
+                    (
+                        ageRatio
+                        * 4
+                    );
+
+
+                const opacity =
+                    0.85
+                    -
+                    (
+                        ageRatio
+                        * 0.65
+                    );
+
+
+                dot.style.left =
+                    position.left
+                    + "%";
+
+
+                dot.style.top =
+                    position.top
+                    + "%";
+
+
+                dot.style.width =
+                    dotSize
+                    + "px";
+
+
+                dot.style.height =
+                    dotSize
+                    + "px";
+
+
+                dot.style.opacity =
+                    opacity;
+
+
+                dot.style.display =
+                    "block";
+
+
+                dotIndex++;
+
+            }
+
+        }
+
+
+        // =====================================================
+        // GOAL-AWARE TIME LABEL
+        //
+        // The original seconds_to_goal value is NHL event time.
+        // We shift it so 0.00 occurs on the visually detected
+        // puck-crossing frame.
+        // =====================================================
+
+        function getGoalTimeLabel(
+            frameIndex
+        ) {
+
+            const frame =
+                frames[
+                    frameIndex
+                ];
+
+
+            if (
+                !frame
+                ||
+                frame.seconds_to_goal
+                === null
+            ) {
+
+                return "--";
+
+            }
+
+
+            let secondsToGoal =
+                frame.seconds_to_goal;
+
+
+            if (
+                visualGoalTimeOffset
+                !== null
+            ) {
+
+                secondsToGoal =
+                    secondsToGoal
+                    - visualGoalTimeOffset;
+
+            }
+
+
+            if (
+                frameIndex
+                === goalFrameIndex
+                ||
+                Math.abs(
+                    secondsToGoal
+                )
+                < 0.05
+            ) {
+
+                return "GOAL";
+
+            }
+
+
+            // Negative values are BEFORE the visual goal frame.
+
+            if (
+                secondsToGoal < 0
+            ) {
+
+                return (
+                    Math.abs(
+                        secondsToGoal
+                    )
+                    .toFixed(2)
+                    +
+                    " s before goal"
+                );
+
+            }
+
+
+            // Positive values are AFTER the visual goal frame.
+
+            return (
+                secondsToGoal
+                    .toFixed(2)
+                +
+                " s after goal"
+            );
+
+        }
+
+
+        // =====================================================
+        // DRAW ONE FRAME
+        // =====================================================
+
+        function drawFrame(
+            frame,
+            frameIndex
+        ) {
+
+            displayedFrame =
+                frameIndex;
+
+
+            hideAllPlayers();
+
+
+            // -------------------------------------------------
+            // PLAYERS
+            // -------------------------------------------------
+
+            frame.players.forEach(
+                player => {
+
+
+                    const marker =
+                        getPlayerMarker(
+                            player.player_id
+                        );
+
+
+                    const ring =
+                        getScorerRing(
+                            player.player_id
+                        );
+
+
+                    const position =
+                        rinkToPercent(
+                            player.x,
+                            player.y
+                        );
+
+
+                    marker.className =
+                        "marker";
+
+
+                    if (
+                        player.team
+                            === "home"
+                        &&
+                        player.goalie
+                    ) {
+
+                        marker.classList.add(
+                            "home-goalie"
+                        );
+
+                    }
+
+
+                    else if (
+                        player.team
+                            === "away"
+                        &&
+                        player.goalie
+                    ) {
+
+                        marker.classList.add(
+                            "away-goalie"
+                        );
+
+                    }
+
+
+                    else if (
+                        player.team
+                            === "home"
+                    ) {
+
+                        marker.classList.add(
+                            "home-player"
+                        );
+
+                    }
+
+
+                    else {
+
+                        marker.classList.add(
+                            "away-player"
+                        );
+
+                    }
+
+
+                    marker.style.left =
+                        position.left
+                        + "%";
+
+
+                    marker.style.top =
+                        position.top
+                        + "%";
+
+
+                    marker.textContent =
+                        player.sweater;
+
+
+                    marker.style.display =
+                        "flex";
+
+
+                    if (
+                        player.scorer
+                    ) {
+
+
+                        ring.style.left =
+                            position.left
+                            + "%";
+
+
+                        ring.style.top =
+                            position.top
+                            + "%";
+
+
+                        ring.style.display =
+                            "block";
+
+                    }
+
+                }
+            );
+
+
+            // -------------------------------------------------
+            // PUCK TRAIL
+            // -------------------------------------------------
+
+            drawPuckTrail(
+                frameIndex
+            );
+
+
+            // -------------------------------------------------
+            // CURRENT PUCK
+            // -------------------------------------------------
+
+            if (
+                frame.puck
+                !== null
+            ) {
+
+
+                const safePuck =
+                    keepPuckInsideRink(
+                        frame.puck.x,
+                        frame.puck.y
+                    );
+
+
+                const puckPosition =
+                    rinkToPercent(
+                        safePuck.x,
+                        safePuck.y
+                    );
+
+
+                puckMarker.style.left =
+                    puckPosition.left
+                    + "%";
+
+
+                puckMarker.style.top =
+                    puckPosition.top
+                    + "%";
+
+
+                puckMarker.style.display =
+                    "block";
+
+            }
+
+            else {
+
+                puckMarker.style.display =
+                    "none";
+
+            }
+
+
+            // -------------------------------------------------
+            // TIME DISPLAY
+            // -------------------------------------------------
+
+            const timeLabel =
+                getGoalTimeLabel(
+                    frameIndex
+                );
+
+
+            frameInfo.textContent =
+                timeLabel;
+
+
+            currentTimeLabel.textContent =
+                timeLabel;
+
+
+            // -------------------------------------------------
+            // TIMELINE
+            // -------------------------------------------------
+
+            timelineSlider.value =
+                frameIndex;
+
+        }
+
+
+        // =====================================================
+        // CHECK IF FRAME IS GOAL FRAME
+        // =====================================================
+
+        function isGoalFrame(
+            frameIndex
+        ) {
+
+            return (
+                frameIndex
+                === goalFrameIndex
+            );
+
+        }
+
+
+        // =====================================================
+        // ADVANCE ANIMATION
+        // =====================================================
+
+        function animate() {
+
+            if (
+                goalPauseActive
+            ) {
+
+                return;
+
+            }
+
+
+            const frameIndex =
+                currentFrame;
+
+
+            const frame =
+                frames[
+                    frameIndex
+                ];
+
+
+            drawFrame(
+                frame,
+                frameIndex
+            );
+
+
+            currentFrame++;
+
+
+            if (
+                currentFrame
+                >= frames.length
+            ) {
+
+                currentFrame =
+                    0;
+
+            }
+
+
+            if (
+                isGoalFrame(
+                    frameIndex
+                )
+            ) {
+
+
+                goalPauseActive =
+                    true;
+
+
+                goalPauseTimer =
+                    setTimeout(
+                        function() {
+
+                            goalPauseActive =
+                                false;
+
+                            goalPauseTimer =
+                                null;
+
+                        },
+                        goalPauseMilliseconds
+                    );
+
+            }
+
+        }
+
+
+        // =====================================================
+        // FRAME DELAY
+        // =====================================================
+
+        function getFrameDelay() {
+
+            return (
+                baseFrameDelay
+                / playbackSpeed
+            );
+
+        }
+
+
+        // =====================================================
+        // CLEAR GOAL PAUSE
+        // =====================================================
+
+        function clearGoalPause() {
+
+            if (
+                goalPauseTimer
+                !== null
+            ) {
+
+
+                clearTimeout(
+                    goalPauseTimer
+                );
+
+
+                goalPauseTimer =
+                    null;
+
+            }
+
+
+            goalPauseActive =
+                false;
+
+        }
+
+
+        // =====================================================
+        // START PLAYING
+        // =====================================================
+
+        function startAnimation() {
+
+            if (
+                animationTimer
+                !== null
+            ) {
+
+                return;
+
+            }
+
+
+            animationTimer =
+                setInterval(
+                    animate,
+                    getFrameDelay()
+                );
+
+
+            isPlaying =
+                true;
+
+
+            playPauseButton.textContent =
+                "Pause";
+
+        }
+
+
+        // =====================================================
+        // PAUSE
+        // =====================================================
+
+        function pauseAnimation() {
+
+            if (
+                animationTimer
+                !== null
+            ) {
+
+
+                clearInterval(
+                    animationTimer
+                );
+
+
+                animationTimer =
+                    null;
+
+            }
+
+
+            clearGoalPause();
+
+
+            isPlaying =
+                false;
+
+
+            playPauseButton.textContent =
+                "Play";
+
+        }
+
+
+        // =====================================================
+        // RESTART TIMER AFTER SPEED CHANGE
+        // =====================================================
+
+        function restartAnimationTimer() {
+
+            if (
+                !isPlaying
+            ) {
+
+                return;
+
+            }
+
+
+            if (
+                animationTimer
+                !== null
+            ) {
+
+
+                clearInterval(
+                    animationTimer
+                );
+
+
+                animationTimer =
+                    null;
+
+            }
+
+
+            animationTimer =
+                setInterval(
+                    animate,
+                    getFrameDelay()
+                );
+
+        }
+
+
+        // =====================================================
+        // SHOW SPECIFIC FRAME
+        // =====================================================
+
+        function showFrame(
+            frameIndex
+        ) {
+
+            if (
+                frameIndex < 0
+            ) {
+
+                frameIndex =
+                    frames.length - 1;
+
+            }
+
+
+            if (
+                frameIndex
+                >= frames.length
+            ) {
+
+                frameIndex =
+                    0;
+
+            }
+
+
+            drawFrame(
+                frames[
+                    frameIndex
+                ],
+                frameIndex
+            );
+
+
+            currentFrame =
+                frameIndex + 1;
+
+
+            if (
+                currentFrame
+                >= frames.length
+            ) {
+
+                currentFrame =
+                    0;
+
+            }
+
+        }
+
+
+        // =====================================================
+        // SPEED BUTTON DISPLAY
+        // =====================================================
+
+        function updateSpeedButtons() {
+
+            speedHalfButton.classList.remove(
+                "active"
+            );
+
+            speedNormalButton.classList.remove(
+                "active"
+            );
+
+            speedDoubleButton.classList.remove(
+                "active"
+            );
+
+
+            if (
+                playbackSpeed === 0.5
+            ) {
+
+                speedHalfButton.classList.add(
+                    "active"
+                );
+
+            }
+
+
+            else if (
+                playbackSpeed === 2.0
+            ) {
+
+                speedDoubleButton.classList.add(
+                    "active"
+                );
+
+            }
+
+
+            else {
+
+                speedNormalButton.classList.add(
+                    "active"
+                );
+
+            }
+
+        }
+
+
+        // =====================================================
+        // SET PLAYBACK SPEED
+        // =====================================================
+
+        function setPlaybackSpeed(
+            speed
+        ) {
+
+            playbackSpeed =
+                speed;
+
+
+            updateSpeedButtons();
+
+
+            restartAnimationTimer();
+
+        }
+
+
+        // =====================================================
+        // UPDATE PUCK TRAIL BUTTON
+        // =====================================================
+
+        function updatePuckTrailButton() {
+
+            if (
+                puckTrailEnabled
+            ) {
+
+                puckTrailButton.textContent =
+                    "Puck Trail: On";
+
+
+                puckTrailButton.classList.add(
+                    "active"
+                );
+
+            }
+
+            else {
+
+                puckTrailButton.textContent =
+                    "Puck Trail: Off";
+
+
+                puckTrailButton.classList.remove(
+                    "active"
+                );
+
+            }
+
+        }
+
+
+        // =====================================================
+        // PLAY / PAUSE
+        // =====================================================
+
+        playPauseButton.addEventListener(
+            "click",
+            function() {
+
+
+                if (
+                    isPlaying
+                ) {
+
+                    pauseAnimation();
+
+                }
+
+                else {
+
+                    startAnimation();
+
+                }
+
+            }
+        );
+
+
+        // =====================================================
+        // PREVIOUS FRAME
+        // =====================================================
+
+        previousFrameButton.addEventListener(
+            "click",
+            function() {
+
+
+                pauseAnimation();
+
+
+                showFrame(
+                    displayedFrame - 1
+                );
+
+            }
+        );
+
+
+        // =====================================================
+        // NEXT FRAME
+        // =====================================================
+
+        nextFrameButton.addEventListener(
+            "click",
+            function() {
+
+
+                pauseAnimation();
+
+
+                showFrame(
+                    displayedFrame + 1
+                );
+
+            }
+        );
+
+
+        // =====================================================
+        // RESTART
+        // =====================================================
+
+        restartButton.addEventListener(
+            "click",
+            function() {
+
+
+                clearGoalPause();
+
+
+                showFrame(
+                    0
+                );
+
+            }
+        );
+
+
+        // =====================================================
+        // PUCK TRAIL TOGGLE
+        // =====================================================
+
+        puckTrailButton.addEventListener(
+            "click",
+            function() {
+
+
+                puckTrailEnabled =
+                    !puckTrailEnabled;
+
+
+                updatePuckTrailButton();
+
+
+                drawFrame(
+                    frames[
+                        displayedFrame
+                    ],
+                    displayedFrame
+                );
+
+            }
+        );
+
+
+        // =====================================================
+        // SPEED 0.5X
+        // =====================================================
+
+        speedHalfButton.addEventListener(
+            "click",
+            function() {
+
+
+                setPlaybackSpeed(
+                    0.5
+                );
+
+            }
+        );
+
+
+        // =====================================================
+        // SPEED 1X
+        // =====================================================
+
+        speedNormalButton.addEventListener(
+            "click",
+            function() {
+
+
+                setPlaybackSpeed(
+                    1.0
+                );
+
+            }
+        );
+
+
+        // =====================================================
+        // SPEED 2X
+        // =====================================================
+
+        speedDoubleButton.addEventListener(
+            "click",
+            function() {
+
+
+                setPlaybackSpeed(
+                    2.0
+                );
+
+            }
+        );
+
+
+        // =====================================================
+        // TIMELINE SCRUBBING
+        // =====================================================
+
+        timelineSlider.addEventListener(
+            "input",
+            function() {
+
+
+                pauseAnimation();
+
+
+                const selectedFrame =
+                    Number(
+                        timelineSlider.value
+                    );
+
+
+                showFrame(
+                    selectedFrame
+                );
+
+            }
+        );
+
+
+        // =====================================================
+        // KEYBOARD CONTROLS
+        // =====================================================
+
+        document.addEventListener(
+            "keydown",
+            function(event) {
+
+
+                if (
+                    event.key
+                    === "ArrowLeft"
+                ) {
+
+
+                    event.preventDefault();
+
+
+                    pauseAnimation();
+
+
+                    showFrame(
+                        displayedFrame - 1
+                    );
+
+                }
+
+
+                else if (
+                    event.key
+                    === "ArrowRight"
+                ) {
+
+
+                    event.preventDefault();
+
+
+                    pauseAnimation();
+
+
+                    showFrame(
+                        displayedFrame + 1
+                    );
+
+                }
+
+
+                else if (
+                    event.code
+                    === "Space"
+                ) {
+
+
+                    event.preventDefault();
+
+
+                    if (
+                        isPlaying
+                    ) {
+
+                        pauseAnimation();
+
+                    }
+
+                    else {
+
+                        startAnimation();
+
+                    }
+
+                }
+
+            }
+        );
+
+
+        // =====================================================
+        // INITIALIZE
+        // =====================================================
+
+        if (
+            frames.length > 0
+        ) {
+
+
+            positionGoalMarker();
+
+
+            updateSpeedButtons();
+
+
+            updatePuckTrailButton();
+
+
+            showFrame(
+                0
+            );
+
+
+            startAnimation();
+
+        }
+
+    </script>
+
+</body>
+
+</html>

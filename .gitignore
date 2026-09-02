@@ -27,6 +27,13 @@ __pycache__/
 venv/
 env/
 
+# Cloudflare / deployment secrets
+.env
+.env.*
+rclone.conf
+*.key
+*.pem
+
 # Rendered figures. The four PNGs are committed — they are what the README and
 # the docs point at, and a reader should not have to build 14M rows to see the
 # result. Everything else here is regenerable output: the SVG companions, and
