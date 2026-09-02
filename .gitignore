@@ -49,3 +49,14 @@ figures/*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local development / diagnostic files
+Readme_CG.md
+RunIT.py
+RunIT2.py
+clip_server.py
+check_audit.py
+check_game.py
+check_goals.py
+test_r2.py
+rink.png
