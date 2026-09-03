@@ -1,0 +1,32 @@
+# Large local data - goal clips are served from Cloudflare R2
+raw/
+processed/
+audit/
+zenodo_archive/
+
+# Local Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Local development and diagnostic files
+Readme_CG.md
+RunIT.py
+RunIT2.py
+clip_server.py
+check_audit.py
+check_game.py
+check_goals.py
+test_r2.py
+rink.png
+
+# Power BI file is not required by the Flask deployment
+powerbi/
+
+# Development/repository files not needed at runtime
+figures/
+docs/
+.vscode/
+.idea/
