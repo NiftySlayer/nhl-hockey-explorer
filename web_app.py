@@ -95,19 +95,6 @@ def home():
     """
 
 
-@app.route("/rink.png")
-def rink_image():
-    rink_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "public",
-        "rink.png"
-    )
-    return send_from_directory(
-        os.path.dirname(rink_path),
-        os.path.basename(rink_path)
-    )
-
-
 # ============================================================
 # CLIP PAGE
 # ============================================================
