@@ -50,6 +50,7 @@ figures/*
 .DS_Store
 Thumbs.db
 
+
 # Local development / diagnostic files
 Readme_CG.md
 RunIT.py
@@ -61,4 +62,4 @@ check_goals.py
 test_r2.py
 rink.png
 
-.vercel
+.vercel/
