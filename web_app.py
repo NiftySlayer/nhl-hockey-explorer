@@ -1,4 +1,5 @@
 from flask import Flask, request, render_template, url_for, send_from_directory
+from rink_data import RINK_DATA_URL
 import json
 import os
 import io
@@ -594,19 +595,7 @@ def clip():
     # ========================================================
     # RINK IMAGE
     # ========================================================
-  
-    rink_path = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)),
-    "public",
-    "rink.png"
-    )
-
-    with open(rink_path, "rb") as image_file:
-        rink_base64 = base64.b64encode(
-        image_file.read()
-        ).decode("utf-8")
-
-    rink_url = f"data:image/png;base64,{rink_base64}"
+    rink_url = RINK_DATA_URL
   
   
   
