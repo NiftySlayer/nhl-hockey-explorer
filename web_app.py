@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, url_for
+from flask import Flask, request, render_template, url_for, send_from_directory
 import json
 import os
 import io
@@ -94,6 +94,11 @@ def home():
         </body>
     </html>
     """
+
+
+@app.route("/rink.png")
+def rink_image():
+    return send_from_directory("public", "rink.png")
 
 
 # ============================================================
@@ -580,7 +585,10 @@ def clip():
     # ========================================================
     # RINK IMAGE
     # ========================================================
-    rink_url = "/rink.png"
+    if os.environ.get("VERCEL"):
+        rink_url = "/rink.png"
+    else:
+        rink_url = url_for("static", filename="rink.png")
 
 
     # ========================================================
