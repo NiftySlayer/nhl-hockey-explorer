@@ -3,6 +3,7 @@ import json
 import os
 import io
 import time
+import base64
 
 import boto3
 import pandas as pd
@@ -593,10 +594,23 @@ def clip():
     # ========================================================
     # RINK IMAGE
     # ========================================================
-    if os.environ.get("VERCEL"):
-        rink_url = "/rink.png"
-    else:
-        rink_url = url_for("static", filename="rink.png")
+  
+    rink_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "public",
+    "rink.png"
+    )
+
+    with open(rink_path, "rb") as image_file:
+        rink_base64 = base64.b64encode(
+        image_file.read()
+        ).decode("utf-8")
+
+    rink_url = f"data:image/png;base64,{rink_base64}"
+  
+  
+  
+  
 
 
     # ========================================================
