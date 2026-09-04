@@ -96,6 +96,11 @@ def home():
     """
 
 
+@app.route("/rink.png")
+def rink_image():
+    return app.send_static_file("rink.png")
+
+
 # ============================================================
 # CLIP PAGE
 # ============================================================
@@ -580,7 +585,10 @@ def clip():
     # ========================================================
     # RINK IMAGE
     # ========================================================
-    rink_url = "/rink.png"
+    if os.environ.get("VERCEL"):
+        rink_url = "/rink.png"
+    else:
+            rink_url = url_for("static", filename="rink.png")
 
 
     # ========================================================
