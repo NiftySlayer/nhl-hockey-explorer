@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "web_app.py": {
-      "includeFiles": "public/rink.png"
-    }
-  }
-}

@@ -1,14 +1,11 @@
-from flask import Flask, request, render_template, url_for, send_from_directory
+from flask import Flask, request, render_template
 from rink_data import RINK_DATA_URL
 import json
 import os
 import io
 import time
-import base64
-
 import boto3
 import pandas as pd
-
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
