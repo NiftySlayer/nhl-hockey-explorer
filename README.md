@@ -4,6 +4,14 @@ An interactive NHL analytics project combining Power BI dashboards with browser-
 
 The project provides an interactive way to explore NHL teams, schedules, games, players, goals, and individual goal sequences using both traditional business intelligence reporting and frame-by-frame player and puck tracking data.
 
+## NHL Hockey Explorer Dashboard
+![NHL Hockey Explorer Power BI Dashboard](docs/images/power-bi-dashboard.png)
+
+
+## Public Power BI link
+https://app.powerbi.com/view?r=eyJrIjoiMWQ5YmVkN2YtN2I2MS00ZDYzLTgyZjMtZDdkNzY2MmU4OGY5IiwidCI6IjlkZjE5Yjk5LTY1NjItNDA4NC04OTlmLWY3NzcxZWNmNDMzNyJ9
+
+
 ## Project Overview
 
 NHL Hockey Explorer consists of two primary components:
@@ -23,6 +31,10 @@ Features include:
 - Player goal exploration
 - Goal details including scorer, period, and shot type
 - Links from individual goals to the browser-based goal tracking viewer
+
+### Interactive Schedule
+
+![NHL Hockey Explorer Schedule](docs/images/schedule.png)
 
 The report currently covers:
 
@@ -54,6 +66,10 @@ The viewer displays:
 - Before and after goal movement
 
 Player and puck locations are animated on an NHL rink using the tracking coordinates associated with each goal.
+
+### Goal Tracking Animation
+
+![NHL Goal Tracking Viewer](docs/images/goal-clip-viewer.png)
 
 ## Architecture
 
@@ -220,9 +236,9 @@ This connects the analytical Power BI report with the frame-by-frame tracking vi
 
 ## Project Status
 
-NHL Hockey Explorer is under active development.
+NHL Hockey Explorer is fully deployed and publicly accessible.
 
-Current work includes deployment of the browser-based goal viewer and final integration with the Power BI report.
+The Power BI report is integrated with the browser-based goal tracking viewer, allowing individual goals selected in the report to be replayed using frame-by-frame player and puck tracking data.
 
 ## Disclaimer
 
