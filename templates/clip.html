@@ -139,6 +139,24 @@
             font-weight: bold;
         }
 
+        .matchup-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+        }
+
+        .matchup-header h1 {
+            margin: 0;
+        }
+
+        .team-logo {
+            width: 70px;
+            height: 70px;
+            object-fit: contain;
+        }
+
+
 
         /* =====================================================
            CONTROLS
@@ -398,9 +416,29 @@
 
     <div class="container">
 
+       <div class="matchup-header">
+
+        {% if away_logo %}
+            <img
+                src="{{ away_logo }}"
+                alt="{{ away_abbr }} logo"
+                class="team-logo"
+            >
+        {% endif %}
+
         <h1>
             {{ away_abbr }} at {{ home_abbr }}
         </h1>
+
+        {% if home_logo %}
+            <img
+                src="{{ home_logo }}"
+                alt="{{ home_abbr }} logo"
+                class="team-logo"
+            >
+        {% endif %}
+
+</div>
 
         <h2>
             Goal: {{ scorer }}

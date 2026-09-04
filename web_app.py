@@ -112,13 +112,12 @@ def clip():
     season = request.args.get("season")
     game_id = request.args.get("game_id")
     event_id = request.args.get("event_id")
-
     game_date = request.args.get("date")
-
     home_abbr = request.args.get("home")
     away_abbr = request.args.get("away")
-
     scorer = request.args.get("scorer")
+    home_logo = request.args.get("home_logo")
+    away_logo = request.args.get("away_logo")
 
 
     # --------------------------------------------------------
@@ -355,7 +354,6 @@ def clip():
     current_frame_number = None
     current_frame = None
 
-
     columns_needed = [
         "frame_idx",
         "seconds_to_goal",
@@ -582,10 +580,6 @@ def clip():
     rink_url = RINK_DATA_URL
   
   
-  
-  
-
-
     # ========================================================
     # JSON SERIALIZATION
     # ========================================================
@@ -609,25 +603,17 @@ def clip():
     html = render_template(
 
         "clip.html",
-
         season=season,
-
         game_id=game_id,
-
         event_id=event_id,
-
         game_date=game_date,
-
         home_abbr=home_abbr,
-
         away_abbr=away_abbr,
-
         scorer=scorer,
-
         rink_url=rink_url,
-
+        home_logo=home_logo,
+        away_logo=away_logo,
         frames_json=frames_json
-
     )
 
 
