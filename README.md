@@ -9,7 +9,7 @@ The project provides an interactive way to explore NHL teams, schedules, games, 
 
 
 ## Public Power BI link
-https://app.powerbi.com/view?r=eyJrIjoiMWQ5YmVkN2YtN2I2MS00ZDYzLTgyZjMtZDdkNzY2MmU4OGY5IiwidCI6IjlkZjE5Yjk5LTY1NjItNDA4NC04OTlmLWY3NzcxZWNmNDMzNyJ9
+https://app.powerbi.com/view?r=eyJrIjoiMGIxNTcyYzgtOTlkMC00MWZhLWFlMGUtNDY3ZTU2M2JjOWNmIiwidCI6IjlkZjE5Yjk5LTY1NjItNDA4NC04OTlmLWY3NzcxZWNmNDMzNyJ9&pageName=12cb743eb8f500b164bd
 
 
 ## Project Overview
