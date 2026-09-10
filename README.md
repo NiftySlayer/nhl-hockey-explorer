@@ -8,8 +8,11 @@ The project provides an interactive way to explore NHL teams, schedules, games, 
 ![NHL Hockey Explorer Power BI Dashboard](docs/images/power-bi-dashboard.png)
 
 
-## Public Power BI link
-https://app.powerbi.com/view?r=eyJrIjoiMGIxNTcyYzgtOTlkMC00MWZhLWFlMGUtNDY3ZTU2M2JjOWNmIiwidCI6IjlkZjE5Yjk5LTY1NjItNDA4NC04OTlmLWY3NzcxZWNmNDMzNyJ9&pageName=12cb743eb8f500b164bd
+## Live Power BI Report
+
+Explore the interactive NHL Hockey Explorer report in Power BI:
+
+[View the Live Power BI Report](https://app.powerbi.com/view?r=eyJrIjoiMGIxNTcyYzgtOTlkMC00MWZhLWFlMGUtNDY3ZTU2M2JjOWNmIiwidCI6IjlkZjE5Yjk5LTY1NjItNDA4NC04OTlmLWY3NzcxZWNmNDMzNyJ9&pageName=12cb743eb8f500b164bd)
 
 
 ## Project Overview
