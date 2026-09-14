@@ -63,7 +63,7 @@ for parquet_path in sorted(
 
 
     # --------------------------------------------------------
-    # ONE FILE PER GAME / EVENT
+    # ONE FILE PER GAME / EVENT pair
     # --------------------------------------------------------
 
     for (
